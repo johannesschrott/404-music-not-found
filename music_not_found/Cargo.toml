@@ -6,3 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ansi_term = "0.12" # for fancy, colored and formatted terminal output!!
+rustfft = "6.0.1" # for computation of stft
+wav_io = "0.1.8" # for conviniently reading csvs.
