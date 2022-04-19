@@ -4,7 +4,6 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 mod track;
-mod onset_algo;
 
 use ansi_term::Style;
 use rustfft::{Fft, FftDirection, FftPlanner, num_complex::Complex};
