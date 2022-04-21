@@ -9,6 +9,7 @@ edition = "2021"
 [dependencies]
 ansi_term = "0.12" # for fancy, colored and formatted terminal output!!
 clap = { version = "3.1.10", features = ["cargo", "derive"] }
+dsp = "0.10.2" #for the hamming window!
 rustfft = "6.0.1" # for computation of stft
 wav_io = "0.1.8" # for conviniently reading csvs.
 conv = "*"

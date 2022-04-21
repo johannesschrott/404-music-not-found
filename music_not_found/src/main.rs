@@ -1,5 +1,6 @@
+extern crate core;
+
 use std::env;
-use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
@@ -7,8 +8,6 @@ use std::path::Path;
 use ansi_term::Style;
 use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, Command};
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
-use rustfft::algorithm::Radix4;
-use rustfft::{num_complex::Complex, Fft, FftDirection, FftPlanner};
 use track::Track;
 
 
@@ -16,9 +15,7 @@ mod onset_algo;
 mod plot;
 mod track;
 
-static ARG_FILE: &'static str = "--file";
-static ARG_HELP: &'static str = "--help";
-static ARG_VALIDATE: &'static str = "--validate";
+
 
 static N_ONSET: usize = 2048;
 static M_ONSET_SIGNAL_ENVELOPE: usize = 10;
