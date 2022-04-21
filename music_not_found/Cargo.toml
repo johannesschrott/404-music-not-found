@@ -1,5 +1,6 @@
 [package]
 name = "music_not_found"
+authors = ["Simon Reitinger, k1190????@students.jku.at", "Johannes Schrott, k11904214@students.jku.at"]
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +8,6 @@ edition = "2021"
 
 [dependencies]
 ansi_term = "0.12" # for fancy, colored and formatted terminal output!!
+clap = { version = "3.1.10", features = ["cargo", "derive"] }
 rustfft = "6.0.1" # for computation of stft
 wav_io = "0.1.8" # for conviniently reading csvs.
