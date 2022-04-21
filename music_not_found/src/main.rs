@@ -5,10 +5,14 @@ use std::path::Path;
 
 mod track;
 mod onset_algo;
+mod plot;
 
 use ansi_term::Style;
+use onset_algo::{OnsetInput, HighFrequencyContent, OnsetAlgorithm};
 use rustfft::{Fft, FftDirection, FftPlanner, num_complex::Complex};
 use rustfft::algorithm::Radix4;
+use track::Track;
+
 
 static ARG_FILE: &'static str = "--file";
 static ARG_HELP: &'static str = "--help";
@@ -36,6 +40,7 @@ fn main() {
                 i += 1;
                 print!("{}", args[i]);
                 process_file(Path::new(&args[i]));
+
             } else if args[i].eq(&ARG_HELP) {
                 print_help();
             }
@@ -64,58 +69,64 @@ fn print_help() {
 }
 
 fn process_file(file_path: &Path) {
-    let input_file = File::open(&file_path).unwrap();
-    let (header, samples) = wav_io::read_from_file(input_file).unwrap();
-    println!("header={:?}", header);
-    println!("Sample rate: {} Hz", header.sample_rate);
 
-    // print the first 32 values of the sample for testing
-    for (i, v) in samples.iter().enumerate() {
-        println!("{}: {}v", i, v);
-        if i > 32 {
-            break;
-        }
-    }
-    println!("Sample Länge: {}", samples.len());
+    let track = Track::from_path(file_path);
+    let onset_input = OnsetInput::from_track(track);
+    let onset_output = HighFrequencyContent::find_onsets(&onset_input);
+    plot::plot(&onset_output.result);
 
-    let mut cur_pos: usize = 0;
-    while cur_pos + N_ONSET < samples.len() {
-        /* FFT realisation based on https://github.com/ejmahler/RustFFT/blob/master/UpgradeGuide4to5.md */
-        let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..cur_pos + N_ONSET].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
-        let mut planner = FftPlanner::new();
-        let fft = planner.plan_fft_forward(N_ONSET);
-        fft.process(&mut fft_buffer);
-        cur_pos += (N_ONSET / 2); // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
-    }
-    let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..samples.len()].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
-    let mut planner = FftPlanner::new();
-    let fft = planner.plan_fft_forward(samples.len() - cur_pos);
-    fft.process(&mut fft_buffer); // fft_buffer contains the transformed part of the signal...
+    // let input_file = File::open(&file_path).unwrap();
+    // let (header, samples) = wav_io::read_from_file(input_file).unwrap();
+    // println!("header={:?}", header);
+    // println!("Sample rate: {} Hz", header.sample_rate);
 
-    // everything run through the fourier transform, but the results are not used yet.
+    // // print the first 32 values of the sample for testing
+    // for (i, v) in samples.iter().enumerate() {
+    //     println!("{}: {}v", i, v);
+    //     if i > 32 {
+    //         break;
+    //     }
+    // }
+    // println!("Sample Länge: {}", samples.len());
 
-    // Check if there is an *.onsets.gt file for the wav
-    let file_string_onsets_gt = [file_path.to_str().unwrap().strip_suffix(".wav").unwrap(), ".onsets.gt"].join("");
+    // let mut cur_pos: usize = 0;
+    // while cur_pos + N_ONSET < samples.len() {
+    //     /* FFT realisation based on https://github.com/ejmahler/RustFFT/blob/master/UpgradeGuide4to5.md */
+    //     let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..cur_pos + N_ONSET].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
+    //     let mut planner = FftPlanner::new();
+    //     let fft = planner.plan_fft_forward(N_ONSET);
+    //     fft.process(&mut fft_buffer);
+    //     cur_pos += (N_ONSET / 2); // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
+    // }
+    // let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..samples.len()].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
+    // let mut planner = FftPlanner::new();
+    // let fft = planner.plan_fft_forward(samples.len() - cur_pos);
+    // fft.process(&mut fft_buffer); // fft_buffer contains the transformed part of the signal...
 
-    let mut found_onsets: Vec<f64> = Vec::new();
+    // // everything run through the fourier transform, but the results are not used yet.
 
+    // // Check if there is an *.onsets.gt file for the wav
+    // let file_string_onsets_gt = [file_path.to_str().unwrap().strip_suffix(".wav").unwrap(), ".onsets.gt"].join("");
 
-    // onset detection should happen here (found onsets seconds have to be pushed to the vector)
-
-    found_onsets.push(0.2f64);
-
-
-    if Path::new(&file_string_onsets_gt).exists() { // if a onsets.gt file in the same folder exists, do a validation!
-        println!("Validation of Found onsets");
-        let gt_file = File::open(Path::new(&file_string_onsets_gt)).unwrap();
-        let reader = BufReader::new(gt_file);
-
-        /// Vector containing the true onset times (in seconds!)
-        let gt_onsets: Vec<f64> = reader.lines().map(|line| line.expect("Error on parsing line")).map(|line| line.parse::<f64>().unwrap()).collect();
+    // let mut found_onsets: Vec<f64> = Vec::new();
 
 
-        f_measure_onsets(&found_onsets, &gt_onsets);
-    }
+    // // onset detection should happen here (found onsets seconds have to be pushed to the vector)
+
+    // found_onsets.push(0.2f64);
+
+
+    // if Path::new(&file_string_onsets_gt).exists() { // if a onsets.gt file in the same folder exists, do a validation!
+    //     println!("Validation of Found onsets");
+    //     let gt_file = File::open(Path::new(&file_string_onsets_gt)).unwrap();
+    //     let reader = BufReader::new(gt_file);
+
+    //     /// Vector containing the true onset times (in seconds!)
+    //     let gt_onsets: Vec<f64> = reader.lines().map(|line| line.expect("Error on parsing line")).map(|line| line.parse::<f64>().unwrap()).collect();
+
+
+    //     f_measure_onsets(&found_onsets, &gt_onsets);
+    // }
 }
 
 fn f_measure_onsets(found_onsets: &Vec<f64>, gt_onsets: &Vec<f64>) {

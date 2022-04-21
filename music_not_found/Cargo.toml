@@ -9,3 +9,5 @@ edition = "2021"
 ansi_term = "0.12" # for fancy, colored and formatted terminal output!!
 rustfft = "6.0.1" # for computation of stft
 wav_io = "0.1.8" # for conviniently reading csvs.
+conv = "*"
+plotters = "^0.3.1"
