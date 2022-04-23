@@ -4,17 +4,17 @@ use std::env;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-
 use ansi_term::Style;
-use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, Command};
+use clap::{Arg, ArgGroup, Command, crate_authors, crate_description, crate_version};
+
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use track::Track;
 
+use crate::onset_algo::SpectralDifference;
 
 mod onset_algo;
 mod plot;
 mod track;
-
 
 
 static N_ONSET: usize = 2048;
@@ -37,7 +37,7 @@ fn main() {
         Style::new().bold().strikethrough().paint("not").to_string(),
         Style::new().bold().paint(" found").to_string(),
     ]
-    .join("");
+        .join("");
 
     let arg_matches = Command::new(fancy_name)
         .about(crate_description!())
@@ -80,8 +80,11 @@ fn main() {
 fn process_file(file_path: &Path) {
     let track = Track::from_path(file_path);
     let onset_input = OnsetInput::from_track(track);
-    let onset_output = HighFrequencyContent::find_onsets(&onset_input);
-    plot::plot(&onset_output.result);
+    let onset_output_high_frequency = HighFrequencyContent::find_onsets(&onset_input);
+    let onset_output_spectral_difference = SpectralDifference::find_onsets(&onset_input);
+
+    plot::plot(&onset_output_high_frequency.result, "high freq.png");
+    plot::plot(&onset_output_spectral_difference.result, "spectr_diff.png")
 
     // let input_file = File::open(&file_path).unwrap();
     // let (header, samples) = wav_io::read_from_file(input_file).unwrap();

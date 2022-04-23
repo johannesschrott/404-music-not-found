@@ -1,12 +1,14 @@
+use std::cmp::max;
 use std::iter::repeat;
 
 use conv::*;
 use dsp::window;
 use rustfft::{FftPlanner, num_complex::Complex};
+use rustfft::num_traits::abs;
 
 use crate::track::Track;
 
-const WINDOW_SIZE: usize = 2048;
+const WINDOW_SIZE: usize = 1024;
 
 pub struct OnsetInput {
     pub samples: Vec<f32>,
@@ -38,7 +40,7 @@ impl OnsetInput {
                 .map(|&value| Complex::new(value, 0f32))
                 .collect();
             fft.process(&mut fft_buffer_comp);
-            cur_pos += WINDOW_SIZE/2 ; // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
+            cur_pos += WINDOW_SIZE / 2; // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
             stft.push(fft_buffer_comp);
         }
 
@@ -53,7 +55,7 @@ impl OnsetInput {
             .collect();
         fft.process(&mut fft_buffer_comp);
         stft.push(fft_buffer_comp);
-        
+
         OnsetInput {
             samples: track.samples,
             stft,
@@ -107,6 +109,48 @@ impl OnsetAlgorithm for HighFrequencyContent {
                 s / f32::value_from(WINDOW_SIZE).unwrap()
             })
             .collect();
+        OnsetOutput { result: d }
+    }
+}
+
+pub struct SpectralDifference;
+
+impl SpectralDifference {}
+
+impl OnsetAlgorithm for SpectralDifference {
+    fn find_onsets(input: &OnsetInput) -> OnsetOutput {
+        /*let d: Vec<f32> = input
+            .stft
+            .iter()
+            .map(|stft|  stft.iter().map(|&comp| comp.re as f32).collect::<Vec<f32>>())
+            .into_iter()
+            .tuple_windows()
+            .map(|spectrums| {
+                let s = spectrums;
+                return 0f32;
+            })
+            .collect();
+            */
+        let mut spectral_differences: Vec<Vec<f32>> = Vec::new();
+        let empty_diff = vec![0;1024].iter().map(|&i| (i as f32) * 0.0).collect();
+        spectral_differences.push(empty_diff);
+
+        let stft_len = input.stft[0].len();
+        for i in 1..input.stft.len() {
+            let mut sd: Vec<f32> = Vec::new();
+            // formula for sd see slide 24 in L04.pdf
+            for j in 0 .. stft_len {
+                let x: f32 = (input.stft[i][j].re-input.stft[i-1][j].re).powi(2);
+                sd.push((x+abs(x))/2 as f32)
+            }
+            spectral_differences.push(sd);
+        }
+
+        let d: Vec<f32> = spectral_differences
+            .iter()
+            .map(|diffs| diffs.iter().sum::<f32>())
+            .collect();
+
         OnsetOutput { result: d }
     }
 }

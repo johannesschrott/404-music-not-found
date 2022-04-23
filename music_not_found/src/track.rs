@@ -3,7 +3,7 @@ use wav_io::header::WavHeader;
 
 pub struct Track {
     pub samples: Vec<f32>,
-    header: WavHeader
+    pub header: WavHeader
 }
 
 impl Track {
