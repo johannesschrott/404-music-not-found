@@ -3,9 +3,10 @@ use std::iter::repeat;
 
 use conv::*;
 use dsp::window;
-use rustfft::{FftPlanner, num_complex::Complex};
 use rustfft::num_traits::abs;
+use rustfft::{num_complex::Complex, FftPlanner};
 
+use crate::statistics::{normalize};
 use crate::track::Track;
 
 const WINDOW_SIZE: usize = 1024;
@@ -36,7 +37,8 @@ impl OnsetInput {
 
             hamming.apply(fft_in, &mut fft_buffer_real);
 
-            let mut fft_buffer_comp: Vec<Complex<f32>> = fft_buffer_real.iter()
+            let mut fft_buffer_comp: Vec<Complex<f32>> = fft_buffer_real
+                .iter()
                 .map(|&value| Complex::new(value, 0f32))
                 .collect();
             fft.process(&mut fft_buffer_comp);
@@ -49,8 +51,8 @@ impl OnsetInput {
         let mut fft_buffer_real = vec![0f32; WINDOW_SIZE];
         hamming.apply(&fft_in, &mut fft_buffer_real);
 
-
-        let mut fft_buffer_comp: Vec<Complex<f32>> = fft_buffer_real.iter()
+        let mut fft_buffer_comp: Vec<Complex<f32>> = fft_buffer_real
+            .iter()
             .map(|&value| Complex::new(value, 0f32))
             .collect();
         fft.process(&mut fft_buffer_comp);
@@ -65,6 +67,14 @@ impl OnsetInput {
 
 pub struct OnsetOutput {
     pub result: Vec<f32>,
+}
+
+impl OnsetOutput {
+    fn make_output(result: Vec<f32>) -> OnsetOutput {
+        OnsetOutput {
+            result: normalize(&result),
+        }
+    }
 }
 
 pub trait OnsetAlgorithm {
@@ -109,7 +119,7 @@ impl OnsetAlgorithm for HighFrequencyContent {
                 s / f32::value_from(WINDOW_SIZE).unwrap()
             })
             .collect();
-        OnsetOutput { result: d }
+        OnsetOutput::make_output(d)
     }
 }
 
@@ -120,28 +130,28 @@ impl SpectralDifference {}
 impl OnsetAlgorithm for SpectralDifference {
     fn find_onsets(input: &OnsetInput) -> OnsetOutput {
         /*let d: Vec<f32> = input
-            .stft
-            .iter()
-            .map(|stft|  stft.iter().map(|&comp| comp.re as f32).collect::<Vec<f32>>())
-            .into_iter()
-            .tuple_windows()
-            .map(|spectrums| {
-                let s = spectrums;
-                return 0f32;
-            })
-            .collect();
-            */
+        .stft
+        .iter()
+        .map(|stft|  stft.iter().map(|&comp| comp.re as f32).collect::<Vec<f32>>())
+        .into_iter()
+        .tuple_windows()
+        .map(|spectrums| {
+            let s = spectrums;
+            return 0f32;
+        })
+        .collect();
+        */
         let mut spectral_differences: Vec<Vec<f32>> = Vec::new();
-        let empty_diff = vec![0;1024].iter().map(|&i| (i as f32) * 0.0).collect();
+        let empty_diff = vec![0; 1024].iter().map(|&i| (i as f32) * 0.0).collect();
         spectral_differences.push(empty_diff);
 
         let stft_len = input.stft[0].len();
         for i in 1..input.stft.len() {
             let mut sd: Vec<f32> = Vec::new();
             // formula for sd see slide 24 in L04.pdf
-            for j in 0 .. stft_len {
-                let x: f32 = (input.stft[i][j].re-input.stft[i-1][j].re).powi(2);
-                sd.push((x+abs(x))/2 as f32)
+            for j in 0..stft_len {
+                let x: f32 = (input.stft[i][j].re - input.stft[i - 1][j].re).powi(2);
+                sd.push((x + abs(x)) / 2 as f32)
             }
             spectral_differences.push(sd);
         }
@@ -151,10 +161,6 @@ impl OnsetAlgorithm for SpectralDifference {
             .map(|diffs| diffs.iter().sum::<f32>())
             .collect();
 
-        OnsetOutput { result: d }
+        OnsetOutput::make_output(d)
     }
-}
-
-pub fn normalize(data: Vec<f32>) -> Vec<f32> {
-    todo!()
 }

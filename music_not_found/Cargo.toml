@@ -14,3 +14,5 @@ rustfft = "6.0.1" # for computation of stft
 wav_io = "0.1.8" # for conviniently reading csvs.
 conv = "*"
 plotters = "^0.3.1"
+find_peaks = "*"
+convolve2d = "*"
