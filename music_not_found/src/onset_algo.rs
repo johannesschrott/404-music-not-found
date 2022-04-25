@@ -9,7 +9,7 @@ use rustfft::{num_complex::Complex, FftPlanner};
 use crate::statistics::{normalize};
 use crate::track::Track;
 
-const WINDOW_SIZE: usize = 1024;
+const WINDOW_SIZE: usize = 2048;
 
 pub struct OnsetInput {
     pub samples: Vec<f32>,
@@ -42,7 +42,7 @@ impl OnsetInput {
                 .map(|&value| Complex::new(value, 0f32))
                 .collect();
             fft.process(&mut fft_buffer_comp);
-            cur_pos += WINDOW_SIZE / 2; // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
+            cur_pos += WINDOW_SIZE ; // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
             stft.push(fft_buffer_comp);
         }
 
@@ -67,12 +67,14 @@ impl OnsetInput {
 
 pub struct OnsetOutput {
     pub result: Vec<f32>,
+    pub fft_window_size: usize,
 }
 
 impl OnsetOutput {
     fn make_output(result: Vec<f32>) -> OnsetOutput {
         OnsetOutput {
             result: normalize(&result),
+            fft_window_size: WINDOW_SIZE
         }
     }
 }
@@ -87,6 +89,7 @@ impl OnsetAlgorithm for DummyAlgorithm {
     fn find_onsets(input: &OnsetInput) -> OnsetOutput {
         OnsetOutput {
             result: input.samples.to_owned(),
+            fft_window_size: WINDOW_SIZE,
         }
     }
 }
