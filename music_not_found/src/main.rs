@@ -91,17 +91,20 @@ fn process_file(file_path: &Path) {
     plot::plot(&spectral_difference.result, "spectr_diff.png");
 
     let kernel_function = |k: &[f32]| {
-        let neighborhood: Vec<usize> = (0..28).into_iter().chain((37..65).into_iter()).collect();
-        neighborhood.into_iter().map(|x| k[x] * 0.00815).sum::<f32>() +
-            (k[28] + k[29] + k[35] + k[36]) * 0.03 + (k[30] + k[31] + k[33] + k[34]) * 0.05 + k[32] * 0.16
+        // let neighborhood: Vec<usize> = (0..28).into_iter().chain((37..65).into_iter()).collect();
+        // neighborhood.into_iter().map(|x| k[x] * 0.00815).sum::<f32>() +
+        //     (k[28] + k[29] + k[35] + k[36]) * 0.03 + (k[30] + k[31] + k[33] + k[34]) * 0.05 + k[32] * 0.16
+        (k[0] + k[4]) * (-0.3) + (k[1] + k[3]) * (-0.5) + k[2] * 2.6
     };
 
     let output: Vec<f32> = normalize(&vec_mult(
         &vec![
-            &convolve1D(&high_frequency.result, 65, kernel_function)[..],
-            &convolve1D(&spectral_difference.result, 65, kernel_function)[..],
+            &convolve1D(&high_frequency.result, 5, kernel_function)[..],
+            &convolve1D(&spectral_difference.result, 5, kernel_function)[..],
         ][..],
     )[..]);
+
+    let output: Vec<f32> = normalize(&convolve1D(&spectral_difference.result, 5, kernel_function)[..]);
 
     plot::plot(&output, "output.png");
 
