@@ -1,6 +1,7 @@
 extern crate core;
 
 use std::env;
+use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
@@ -11,14 +12,14 @@ use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use statistics::{convolve1D, normalize, vec_mult};
 use track::Track;
 
-use crate::onset_algo::SpectralDifference;
+use crate::onset_algo::{Peaks, SpectralDifference};
 
 mod onset_algo;
 mod plot;
 mod statistics;
 mod track;
 
-static N_ONSET: usize = 2048;
+static N_ONSET: usize = 4096;
 static M_ONSET_SIGNAL_ENVELOPE: usize = 10;
 
 /// Accuracy in seconds of the estimated onsets
@@ -79,7 +80,9 @@ fn main() {
 
 fn process_file(file_path: &Path) {
     let track = Track::from_path(file_path);
-    let onset_input = OnsetInput::from_track(track);
+    let sample_rate = track.header.sample_rate;
+
+    let onset_input = OnsetInput::from_track(&track);
     let high_frequency = HighFrequencyContent::find_onsets(&onset_input);
     let spectral_difference = SpectralDifference::find_onsets(&onset_input);
 
@@ -87,102 +90,110 @@ fn process_file(file_path: &Path) {
     plot::plot(&spectral_difference.result, "spectr_diff.png");
 
     let kernel_function = |k: &[f32]| {
-        let neighborhood: Vec<usize> = (0..28).into_iter().chain((37..65).into_iter()).collect();
-        neighborhood.into_iter().map(|x| k[x] * 0.00815).sum::<f32>() + 
-        (k[28] + k[29] + k[35] + k[36]) * 0.03 + (k[30] + k[31] + k[33] + k[34]) * 0.05 + k[32] * 0.16
+        // let neighborhood: Vec<usize> = (0..28).into_iter().chain((37..65).into_iter()).collect();
+        // neighborhood.into_iter().map(|x| k[x] * 0.00815).sum::<f32>() +
+        //     (k[28] + k[29] + k[35] + k[36]) * 0.03 + (k[30] + k[31] + k[33] + k[34]) * 0.05 + k[32] * 0.16
+        (k[0] + k[4]) * (-0.3) + (k[1] + k[3]) * (-0.5) + k[2] * 2.6
     };
 
-    let output = normalize(&vec_mult(
-        &vec![
-            &convolve1D(&high_frequency.result, 65, kernel_function)[..],
-            &convolve1D(&spectral_difference.result, 65, kernel_function)[..],
-        ][..],
-    )[..]);
+    let output: Vec<f32> = normalize(
+        &vec_mult(
+            &vec![
+                &convolve1D(&high_frequency.result, 5, kernel_function)[..],
+                &convolve1D(&spectral_difference.result, 5, kernel_function)[..],
+            ][..],
+        )[..],
+    );
+
+    let output: Vec<f32> =
+        normalize(&convolve1D(&spectral_difference.result, 5, kernel_function)[..]);
 
     plot::plot(&output, "output.png");
 
-    // let input_file = File::open(&file_path).unwrap();
-    // let (header, samples) = wav_io::read_from_file(input_file).unwrap();
-    // println!("header={:?}", header);
-    // println!("Sample rate: {} Hz", header.sample_rate);
-    // print the first 32 values of the sample for testing
-    /*  for (i, v) in samples.iter().enumerate() {
-        println!("{}: {}v", i, v);
-        if i > 32 {
-            break;
-        }
-    }*/
-    // println!("Sample Länge: {}", samples.len());
+    // Compute f measure for our different results:
+    println!(
+        "{}",
+        Style::new().bold().paint("Convolved Output").to_string()
+    );
+    f_measure_onsets(
+        &Peaks::pick(&output).onset_times(&track).onset_times,
+        file_path,
+    );
+    println!();
 
-    // let mut cur_pos: usize = 0;
-    // while cur_pos + N_ONSET < samples.len() {
-    //     /* FFT realisation based on https://github.com/ejmahler/RustFFT/blob/master/UpgradeGuide4to5.md */
-    //     let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..cur_pos + N_ONSET].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
-    //     let mut planner = FftPlanner::new();
-    //     let fft = planner.plan_fft_forward(N_ONSET);
-    //     // TODO: Fensterung!!!!
-    //     fft.process(&mut fft_buffer);
-    //     cur_pos += (N_ONSET / 2); // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
-    // }
-    // let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..samples.len()].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
-    // let mut planner = FftPlanner::new();
-    // let fft = planner.plan_fft_forward(samples.len() - cur_pos);
-    // fft.process(&mut fft_buffer); // fft_buffer contains the transformed part of the signal...
+    println!(
+        "{}",
+        Style::new().bold().paint("High Frequency").to_string()
+    );
+    f_measure_onsets(
+        &Peaks::pick(&high_frequency.result)
+            .onset_times(&track)
+            .onset_times,
+        file_path,
+    );
+    println!();
 
-    // // print the first 32 values of the sample for testing
-    // for (i, v) in samples.iter().enumerate() {
-    //     println!("{}: {}v", i, v);
-    //     if i > 32 {
-    //         break;
-    //     }
-    // }
-    // println!("Sample Länge: {}", samples.len());
-
-    // let mut cur_pos: usize = 0;
-    // while cur_pos + N_ONSET < samples.len() {
-    //     /* FFT realisation based on https://github.com/ejmahler/RustFFT/blob/master/UpgradeGuide4to5.md */
-    //     let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..cur_pos + N_ONSET].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
-    //     let mut planner = FftPlanner::new();
-    //     let fft = planner.plan_fft_forward(N_ONSET);
-    //     fft.process(&mut fft_buffer);
-    //     cur_pos += (N_ONSET / 2); // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
-    // }
-    // let mut fft_buffer: Vec<Complex<f32>> = samples[cur_pos..samples.len()].iter().map(|&value| Complex::new(value, 0f32)).into_iter().collect::<Vec<_>>();
-    // let mut planner = FftPlanner::new();
-    // let fft = planner.plan_fft_forward(samples.len() - cur_pos);
-    // fft.process(&mut fft_buffer); // fft_buffer contains the transformed part of the signal...
-
-    // // everything run through the fourier transform, but the results are not used yet.
-
-    // // Check if there is an *.onsets.gt file for the wav
-    // let file_string_onsets_gt = [file_path.to_str().unwrap().strip_suffix(".wav").unwrap(), ".onsets.gt"].join("");
-
-    // let mut found_onsets: Vec<f64> = Vec::new();
-
-    // // onset detection should happen here (found onsets seconds have to be pushed to the vector)
-
-    // found_onsets.push(0.2f64);
-
-    // if Path::new(&file_string_onsets_gt).exists() { // if a onsets.gt file in the same folder exists, do a validation!
-    //     println!("Validation of Found onsets");
-    //     let gt_file = File::open(Path::new(&file_string_onsets_gt)).unwrap();
-    //     let reader = BufReader::new(gt_file);
-    // Check if there is an *.onsets.gt file for the wav
-    // let file_string_onsets_gt = [file_path.to_str().unwrap().strip_suffix(".wav").unwrap(), ".onsets.gt"].join("");
-
-    // if Path::new(&file_string_onsets_gt).exists() { // if a onsets.gt file in the same folder exists, do a validation!
-    //     println!("Validation of Found onsets");
-    //     let gt_file = File::open(Path::new(&file_string_onsets_gt)).unwrap();
-    //     let reader = BufReader::new(gt_file);
-
-    //     /// Vector containing the true onset times (in seconds!)
-    //     let gt_onsets: Vec<f64> = reader.lines().map(|line| line.expect("Error on parsing line")).map(|line| line.parse::<f64>().unwrap()).collect();
-
-    //     f_measure_onsets(&found_onsets, &gt_onsets);
-    // }
+    println!(
+        "{}",
+        Style::new()
+            .bold()
+            .paint("Spectral Difference Output")
+            .to_string()
+    );
+    f_measure_onsets(
+        &Peaks::pick(&spectral_difference.result)
+            .onset_times(&track)
+            .onset_times,
+        file_path,
+    );
 }
 
-fn f_measure_onsets(found_onsets: &Vec<f64>, gt_onsets: &Vec<f64>) {
+// fn get_onset_times(output: &Vec<f32>, window_size: usize, sample_rate: u32) ->Vec<f64> {
+//     // Compute times of peaks
+//     let peaks: Vec<bool> = (0..output.len())
+//         .into_iter()
+//         .map(|i| {
+//             return if (i > 0 && i < output.len() - 1) /* checks if index is at border */
+//                 && (output[i - 1] <output[i] && output[i] > output[i + 1] ) /* checks if a peak */ {
+//                 true
+//             } else {
+//                 false
+//             };
+//         })
+//         .collect::<Vec<bool>>();
+
+//     let mut onset_times: Vec<f64> = Vec::new();
+
+//     for i in 0..peaks.len() {
+//         if peaks[i] {
+//             onset_times.push(i as f64 * ((window_size as f64) / (sample_rate as f64)));
+//         }
+//     }
+//     return onset_times;
+// }
+
+fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) {
+    let file_string_onsets_gt = [
+        file_path.to_str().unwrap().strip_suffix(".wav").unwrap(),
+        ".onsets.gt",
+    ]
+    .join("");
+
+    if !Path::new(&file_string_onsets_gt).exists() {
+        // if a onsets.gt file in the same folder exists, do a validation!
+        return;
+    }
+    println!("Validation of Found onsets");
+    let gt_file = File::open(Path::new(&file_string_onsets_gt)).unwrap();
+    let reader = BufReader::new(gt_file);
+
+    /// Vector containing the true onset times (in seconds!)
+    let gt_onsets: Vec<f64> = reader
+        .lines()
+        .map(|line| line.expect("Error on parsing line"))
+        .map(|line| line.parse::<f64>().unwrap())
+        .collect();
+
     /// current index in vector of found onsets
     let mut i_found: usize = 0;
     /// current index in vector of gt onsets

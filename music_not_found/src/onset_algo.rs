@@ -9,7 +9,7 @@ use rustfft::{num_complex::Complex, FftPlanner};
 use crate::statistics::normalize;
 use crate::track::Track;
 
-const WINDOW_SIZE: usize = 1024;
+const WINDOW_SIZE: usize = 2048;
 
 pub struct OnsetInput {
     pub samples: Vec<f32>,
@@ -17,7 +17,7 @@ pub struct OnsetInput {
 }
 
 impl OnsetInput {
-    pub fn from_track(track: Track) -> OnsetInput {
+    pub fn from_track(track: &Track) -> OnsetInput {
         let mut planner = FftPlanner::new();
         let hamming = window::hamming(WINDOW_SIZE);
 
@@ -42,7 +42,7 @@ impl OnsetInput {
                 .map(|&value| Complex::new(value, 0f32))
                 .collect();
             fft.process(&mut fft_buffer_comp);
-            cur_pos += WINDOW_SIZE / 2; // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
+            cur_pos += WINDOW_SIZE; // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
             stft.push(fft_buffer_comp);
         }
 
@@ -59,7 +59,7 @@ impl OnsetInput {
         stft.push(fft_buffer_comp);
 
         OnsetInput {
-            samples: track.samples,
+            samples: track.samples.to_owned(),
             stft,
         }
     }
@@ -68,6 +68,7 @@ impl OnsetInput {
 pub struct OnsetOutput {
     pub result: Vec<f32>,
     pub mean: f32,
+    pub fft_window_size: usize,
 }
 
 impl OnsetOutput {
@@ -75,6 +76,7 @@ impl OnsetOutput {
         OnsetOutput {
             result: normalize(&result),
             mean: result.iter().sum::<f32>() / result.len() as f32,
+            fft_window_size: WINDOW_SIZE,
         }
     }
 }
@@ -166,11 +168,41 @@ impl OnsetAlgorithm for SpectralDifference {
 }
 
 pub struct Peaks {
-    peaks: Vec<bool>
+    pub peaks: Vec<bool>,
+}
+
+pub struct OnsetTimes {
+    pub onset_times: Vec<f64>,
 }
 
 impl Peaks {
-    pub fn pick(onset_output: OnsetOutput) -> Peaks {
-        todo!()
+    pub fn pick(output: &[f32]) -> Peaks {
+        // Compute times of peaks
+        let peaks: Vec<bool> = (0..output.len())
+            .into_iter()
+            .map(|i| {
+                return if (i > 0 && i < output.len() - 1) /* checks if index is at border */
+                        && (output[i - 1] <output[i] && output[i] > output[i + 1] )
+                /* checks if a peak */
+                {
+                    true
+                } else {
+                    false
+                };
+            })
+            .collect::<Vec<bool>>();
+        Peaks { peaks }
+    }
+
+    pub fn onset_times(&self, track: &Track) -> OnsetTimes {
+        let mut onset_times: Vec<f64> = Vec::new();
+
+        for i in 0..self.peaks.len() {
+            if self.peaks[i] {
+                onset_times
+                    .push(i as f64 * ((WINDOW_SIZE as f64) / (track.header.sample_rate as f64)));
+            }
+        }
+        OnsetTimes { onset_times }
     }
 }
