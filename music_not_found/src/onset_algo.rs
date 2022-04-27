@@ -6,7 +6,7 @@ use dsp::window;
 use rustfft::num_traits::abs;
 use rustfft::{num_complex::Complex, FftPlanner};
 
-use crate::statistics::{normalize};
+use crate::statistics::normalize;
 use crate::track::Track;
 
 const WINDOW_SIZE: usize = 1024;
@@ -67,12 +67,14 @@ impl OnsetInput {
 
 pub struct OnsetOutput {
     pub result: Vec<f32>,
+    pub mean: f32,
 }
 
 impl OnsetOutput {
     fn make_output(result: Vec<f32>) -> OnsetOutput {
         OnsetOutput {
             result: normalize(&result),
+            mean: result.iter().sum::<f32>() / result.len() as f32,
         }
     }
 }
@@ -85,9 +87,7 @@ pub struct DummyAlgorithm;
 
 impl OnsetAlgorithm for DummyAlgorithm {
     fn find_onsets(input: &OnsetInput) -> OnsetOutput {
-        OnsetOutput {
-            result: input.samples.to_owned(),
-        }
+        OnsetOutput::make_output(input.samples.to_owned())
     }
 }
 
@@ -162,5 +162,15 @@ impl OnsetAlgorithm for SpectralDifference {
             .collect();
 
         OnsetOutput::make_output(d)
+    }
+}
+
+pub struct Peaks {
+    peaks: Vec<bool>
+}
+
+impl Peaks {
+    pub fn pick(onset_output: OnsetOutput) -> Peaks {
+        todo!()
     }
 }
