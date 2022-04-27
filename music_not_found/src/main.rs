@@ -5,8 +5,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+
 use ansi_term::Style;
-use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, Command};
+use clap::{Arg, ArgGroup, Command, crate_authors, crate_description, crate_version};
 
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use statistics::{convolve1D, normalize, vec_mult};
@@ -39,7 +40,7 @@ fn main() {
         Style::new().bold().strikethrough().paint("not").to_string(),
         Style::new().bold().paint(" found").to_string(),
     ]
-    .join("");
+        .join("");
 
     let arg_matches = Command::new(fancy_name)
         .about(crate_description!())
@@ -107,6 +108,8 @@ fn process_file(file_path: &Path) {
 
     let output: Vec<f32> =
         normalize(&convolve1D(&spectral_difference.result, 5, kernel_function)[..]);
+
+    let output: Vec<f32> = normalize(&convolve1D(&spectral_difference.result, 5, kernel_function)[..]);
 
     plot::plot(&output, "output.png");
 
@@ -188,11 +191,8 @@ fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) {
     let reader = BufReader::new(gt_file);
 
     /// Vector containing the true onset times (in seconds!)
-    let gt_onsets: Vec<f64> = reader
-        .lines()
-        .map(|line| line.expect("Error on parsing line"))
-        .map(|line| line.parse::<f64>().unwrap())
-        .collect();
+    let gt_onsets: Vec<f64> = reader.lines().map(|line| line.expect("Error on parsing line")).map(|line| line.parse::<f64>().unwrap()).collect();
+
 
     /// current index in vector of found onsets
     let mut i_found: usize = 0;
