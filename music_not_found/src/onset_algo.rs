@@ -1,5 +1,6 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::iter::repeat;
+
 
 use conv::*;
 use dsp::window;
@@ -20,7 +21,7 @@ impl OnsetInput {
     pub fn from_track(track: &Track) -> OnsetInput {
         OnsetInput {
             samples: track.samples.to_owned(),
-            stft: stft(&track.samples, WINDOW_SIZE, WINDOW_SIZE/2)
+            stft: stft(&track.samples, WINDOW_SIZE, WINDOW_SIZE / 2),
         }
     }
 }
@@ -147,27 +148,58 @@ pub struct Peaks {
     pub peaks: Vec<bool>,
 }
 
+pub struct PeakPicker {
+    pub local_window_max: usize,  // == w1 == w2
+    pub local_window_mean: usize, // == w3 == w4
+    pub delta: f32,
+    pub minimum_distance: usize,
+}
+
 pub struct OnsetTimes {
     pub onset_times: Vec<f64>,
 }
 
-impl Peaks {
-    pub fn pick(onset_output: &OnsetOutput) -> Peaks {
+impl PeakPicker {
+    pub fn pick(&self, onset_output: &OnsetOutput) -> Peaks {
         // Compute times of peaks
         let output = &onset_output.result;
         let means = &onset_output.means;
 
-        let peaks: Vec<bool> = (0..output.len())
-            .into_iter()
-            .map(|i| {
-                (i > 0 && i < output.len() - 1) // checks if index is at border
-                && (output[i - 1] <output[i] && output[i] > output[i + 1] ) // checks if a peak
-                && abs(output[i]) > 0.1 * abs(means[i]) // implement adaptive peak picking, not working well right now
-            })
-            .collect::<Vec<bool>>();
+        let mut peaks: Vec<bool> = repeat(false).take(output.len()).collect();
+
+        let mean_window = |mean_left, mean_right| {
+            output[mean_left..mean_right].iter().sum::<f32>() / (mean_right - mean_left) as f32
+        };
+        let max_window = |max_left, max_right| {
+            output[max_left..max_right].iter().cloned().fold(0. / 0., f32::max)
+        };
+
+        let minimum_distance = |i, peaks: &[bool]| {
+            let v = &peaks[max(i, self.minimum_distance) - self.minimum_distance..i]
+                .iter()
+                .any(|&f| f);
+            !v
+        };
+
+        for i in 1..output.len() - 1 {
+            let mean_left = max(i, self.local_window_mean) - self.local_window_mean;
+            let mean_right = min(output.len(), i + self.local_window_mean + 1);
+
+            let max_left = max(i, self.local_window_max) - self.local_window_max;
+            let max_right = min(output.len(), i + self.local_window_max + 1);
+
+
+            peaks[i] = (output[i - 1] < output[i] && output[i] > output[i + 1] ) // checks if a peak
+            // implement adaptive peak picking
+                && minimum_distance(i, &peaks)
+                && output[i] >= mean_window(mean_left, mean_right)
+                && output[i] >= max_window(max_left, max_right);
+        }
         Peaks { peaks }
     }
+}
 
+impl Peaks {
     pub fn onset_times(&self, track: &Track) -> OnsetTimes {
         let mut onset_times: Vec<f64> = Vec::new();
 

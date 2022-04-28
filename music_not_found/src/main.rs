@@ -13,7 +13,7 @@ use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use statistics::{convolve1D, normalize, vec_mult};
 use track::Track;
 
-use crate::onset_algo::{Peaks, SpectralDifference};
+use crate::onset_algo::{Peaks, SpectralDifference, PeakPicker};
 
 mod onset_algo;
 mod plot;
@@ -110,13 +110,20 @@ fn process_file(file_path: &Path) {
 
     plot::plot(&output.result, "output.png");
 
+    let peak_picker = PeakPicker {
+        local_window_max: 2,
+        local_window_mean: 2,
+        minimum_distance: 1,
+        delta: 0.
+    };
+
     // Compute f measure for our different results:
     println!(
         "{}",
         Style::new().bold().paint("Convolved Output").to_string()
     );
     f_measure_onsets(
-        &Peaks::pick(&output).onset_times(&track).onset_times,
+        &peak_picker.pick(&output).onset_times(&track).onset_times,
         file_path,
     );
     println!();
@@ -126,7 +133,7 @@ fn process_file(file_path: &Path) {
         Style::new().bold().paint("High Frequency").to_string()
     );
     f_measure_onsets(
-        &Peaks::pick(&high_frequency)
+        &peak_picker.pick(&high_frequency)
             .onset_times(&track)
             .onset_times,
         file_path,
@@ -141,7 +148,7 @@ fn process_file(file_path: &Path) {
             .to_string()
     );
     f_measure_onsets(
-        &Peaks::pick(&spectral_difference)
+        &peak_picker.pick(&spectral_difference)
             .onset_times(&track)
             .onset_times,
         file_path,
