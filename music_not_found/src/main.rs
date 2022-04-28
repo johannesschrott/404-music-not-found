@@ -97,21 +97,18 @@ fn process_file(file_path: &Path) {
         (k[0] + k[4]) * (-0.3) + (k[1] + k[3]) * (-0.5) + k[2] * 2.6
     };
 
-    let output: Vec<f32> = normalize(
-        &vec_mult(
-            &vec![
-                &convolve1D(&high_frequency.result, 5, kernel_function)[..],
-                &convolve1D(&spectral_difference.result, 5, kernel_function)[..],
-            ][..],
-        )[..],
-    );
+    // let output: Vec<f32> = normalize(
+    //     &vec_mult(
+    //         &vec![
+    //             &convolve1D(&high_frequency.result, 5, kernel_function)[..],
+    //             &convolve1D(&spectral_difference.result, 5, kernel_function)[..],
+    //         ][..],
+    //     )[..],
+    // );
 
-    let output: Vec<f32> =
-        normalize(&convolve1D(&spectral_difference.result, 5, kernel_function)[..]);
+    let output = spectral_difference.convolve(5, kernel_function);
 
-    let output: Vec<f32> = normalize(&convolve1D(&spectral_difference.result, 5, kernel_function)[..]);
-
-    plot::plot(&output, "output.png");
+    plot::plot(&output.result, "output.png");
 
     // Compute f measure for our different results:
     println!(
@@ -129,7 +126,7 @@ fn process_file(file_path: &Path) {
         Style::new().bold().paint("High Frequency").to_string()
     );
     f_measure_onsets(
-        &Peaks::pick(&high_frequency.result)
+        &Peaks::pick(&high_frequency)
             .onset_times(&track)
             .onset_times,
         file_path,
@@ -144,7 +141,7 @@ fn process_file(file_path: &Path) {
             .to_string()
     );
     f_measure_onsets(
-        &Peaks::pick(&spectral_difference.result)
+        &Peaks::pick(&spectral_difference)
             .onset_times(&track)
             .onset_times,
         file_path,

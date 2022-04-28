@@ -6,7 +6,7 @@ use dsp::window;
 use rustfft::num_traits::abs;
 use rustfft::{num_complex::Complex, FftPlanner};
 
-use crate::statistics::normalize;
+use crate::statistics::{convolve1D, normalize, stft};
 use crate::track::Track;
 
 const WINDOW_SIZE: usize = 2048;
@@ -18,65 +18,41 @@ pub struct OnsetInput {
 
 impl OnsetInput {
     pub fn from_track(track: &Track) -> OnsetInput {
-        let mut planner = FftPlanner::new();
-        let hamming = window::hamming(WINDOW_SIZE);
-
-        let fft = planner.plan_fft_forward(WINDOW_SIZE);
-        //   let samples: Vec<Complex<f32>> = track
-        //       .samples
-        //      .iter()
-        //     .map(|&value| Complex::new(value, 0f32))
-        //      .collect();
-
-        let mut stft = Vec::new();
-
-        let mut cur_pos: usize = 0;
-        while cur_pos + WINDOW_SIZE < track.samples.len() {
-            let mut fft_buffer_real = vec![0f32; WINDOW_SIZE];
-            let fft_in = &track.samples[cur_pos..cur_pos + WINDOW_SIZE];
-
-            hamming.apply(fft_in, &mut fft_buffer_real);
-
-            let mut fft_buffer_comp: Vec<Complex<f32>> = fft_buffer_real
-                .iter()
-                .map(|&value| Complex::new(value, 0f32))
-                .collect();
-            fft.process(&mut fft_buffer_comp);
-            cur_pos += WINDOW_SIZE; // TODO: evtl. nicht um /2 sonden um ganzen N_ONSET verschieben
-            stft.push(fft_buffer_comp);
-        }
-
-        let mut fft_in: Vec<f32> = track.samples[cur_pos..track.samples.len() - 1].to_owned();
-        fft_in.extend(repeat(0f32).take(WINDOW_SIZE - fft_in.len()));
-        let mut fft_buffer_real = vec![0f32; WINDOW_SIZE];
-        hamming.apply(&fft_in, &mut fft_buffer_real);
-
-        let mut fft_buffer_comp: Vec<Complex<f32>> = fft_buffer_real
-            .iter()
-            .map(|&value| Complex::new(value, 0f32))
-            .collect();
-        fft.process(&mut fft_buffer_comp);
-        stft.push(fft_buffer_comp);
-
         OnsetInput {
             samples: track.samples.to_owned(),
-            stft,
+            stft: stft(&track.samples, WINDOW_SIZE, WINDOW_SIZE/2)
         }
     }
 }
 
 pub struct OnsetOutput {
     pub result: Vec<f32>,
-    pub mean: f32,
+    pub means: Vec<f32>,
     pub fft_window_size: usize,
 }
 
 impl OnsetOutput {
-    fn make_output(result: Vec<f32>) -> OnsetOutput {
+    fn make_output(onset_input: &OnsetInput, result: Vec<f32>) -> OnsetOutput {
         OnsetOutput {
             result: normalize(&result),
-            mean: result.iter().sum::<f32>() / result.len() as f32,
+            means: normalize(
+                &onset_input
+                    .stft
+                    .iter()
+                    .map(|stft_window| stft_window.iter().map(|x| x.norm()).sum())
+                    .collect::<Vec<f32>>()[..],
+            ),
             fft_window_size: WINDOW_SIZE,
+        }
+    }
+    pub fn convolve<F>(&self, kernel_size: usize, kernel_function: F) -> OnsetOutput
+    where
+        F: Fn(&[f32]) -> f32,
+    {
+        OnsetOutput {
+            fft_window_size: self.fft_window_size,
+            means: normalize(&convolve1D(&self.means, kernel_size, &kernel_function)),
+            result: normalize(&convolve1D(&self.result, kernel_size, &kernel_function)),
         }
     }
 }
@@ -89,7 +65,7 @@ pub struct DummyAlgorithm;
 
 impl OnsetAlgorithm for DummyAlgorithm {
     fn find_onsets(input: &OnsetInput) -> OnsetOutput {
-        OnsetOutput::make_output(input.samples.to_owned())
+        OnsetOutput::make_output(input, input.samples.to_owned())
     }
 }
 
@@ -121,7 +97,7 @@ impl OnsetAlgorithm for HighFrequencyContent {
                 s / f32::value_from(WINDOW_SIZE).unwrap()
             })
             .collect();
-        OnsetOutput::make_output(d)
+        OnsetOutput::make_output(input, d)
     }
 }
 
@@ -163,7 +139,7 @@ impl OnsetAlgorithm for SpectralDifference {
             .map(|diffs| diffs.iter().sum::<f32>())
             .collect();
 
-        OnsetOutput::make_output(d)
+        OnsetOutput::make_output(input, d)
     }
 }
 
@@ -176,19 +152,17 @@ pub struct OnsetTimes {
 }
 
 impl Peaks {
-    pub fn pick(output: &[f32]) -> Peaks {
+    pub fn pick(onset_output: &OnsetOutput) -> Peaks {
         // Compute times of peaks
+        let output = &onset_output.result;
+        let means = &onset_output.means;
+
         let peaks: Vec<bool> = (0..output.len())
             .into_iter()
             .map(|i| {
-                return if (i > 0 && i < output.len() - 1) /* checks if index is at border */
-                        && (output[i - 1] <output[i] && output[i] > output[i + 1] )
-                /* checks if a peak */
-                {
-                    true
-                } else {
-                    false
-                };
+                (i > 0 && i < output.len() - 1) // checks if index is at border
+                && (output[i - 1] <output[i] && output[i] > output[i + 1] ) // checks if a peak
+                && abs(output[i]) > 0.1 * abs(means[i]) // implement adaptive peak picking, not working well right now
             })
             .collect::<Vec<bool>>();
         Peaks { peaks }
