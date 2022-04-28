@@ -13,8 +13,12 @@ use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use statistics::{convolve1D, normalize, vec_mult};
 use track::Track;
 
-use crate::onset_algo::{Peaks, SpectralDifference, PeakPicker};
+use crate::onset_algo::SpectralDifference;
+use crate::peak_picking::PeakPicker;
 
+
+
+mod peak_picking;
 mod onset_algo;
 mod plot;
 mod statistics;
@@ -87,8 +91,8 @@ fn process_file(file_path: &Path) {
     let high_frequency = HighFrequencyContent::find_onsets(&onset_input);
     let spectral_difference = SpectralDifference::find_onsets(&onset_input);
 
-    plot::plot(&high_frequency.result, "high freq.png");
-    plot::plot(&spectral_difference.result, "spectr_diff.png");
+    plot::plot(&high_frequency.result.data, "high freq.png");
+    plot::plot(&spectral_difference.result.data, "spectr_diff.png");
 
     let kernel_function = |k: &[f32]| {
         // let neighborhood: Vec<usize> = (0..28).into_iter().chain((37..65).into_iter()).collect();
@@ -108,11 +112,11 @@ fn process_file(file_path: &Path) {
 
     let output = spectral_difference.convolve(5, kernel_function);
 
-    plot::plot(&output.result, "output.png");
+    plot::plot(&output.result.data, "output.png");
 
     let peak_picker = PeakPicker {
-        local_window_max: 2,
-        local_window_mean: 2,
+        local_window_max: 1,
+        local_window_mean: 1,
         minimum_distance: 1,
         delta: 0.
     };

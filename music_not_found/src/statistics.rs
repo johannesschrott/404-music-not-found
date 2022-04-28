@@ -68,7 +68,7 @@ pub fn vec_mult(vecs: &[&[f32]]) -> Vec<f32> {
     output
 }
 
-pub fn stft(data: &[f32], window_size: usize, hop_size: usize) -> Vec<Vec<Complex<f32>>> {
+pub fn stft(data: &[f32], window_size: usize, hop_size: usize) -> WinVec<Vec<Complex<f32>>> {
     let mut planner = FftPlanner::new();
     let hamming = window::hamming(window_size);
 
@@ -108,5 +108,44 @@ pub fn stft(data: &[f32], window_size: usize, hop_size: usize) -> Vec<Vec<Comple
         .collect();
     fft.process(&mut fft_buffer_comp);
     stft.push(fft_buffer_comp);
-    stft
+    WinVec {
+        data: stft,
+        window_size,
+        hop_size: hop_size,
+    }
+}
+
+// WinVec<A> is a Wrapper over Vec<A> which keeps track of the used windows size and the hop size
+// That way, we can try easily with different window sizes at the same time 
+
+#[derive(Clone, Debug)]
+pub struct WinVec<A> {
+    pub window_size: usize,
+    pub hop_size: usize,
+    pub data: Vec<A>,
+}
+
+impl<A> WinVec<A> {
+
+
+    // Map the content of WinVec without changing hop_size or window_size
+    pub fn map<F, B>(&self, f: F) -> WinVec<B>
+    where
+        F: Fn(&Vec<A>) -> Vec<B>,
+    {
+        WinVec {
+            data: f(&self.data),
+            window_size: self.window_size,
+            hop_size: self.hop_size,
+        }
+    }
+
+    // Set the content of WinVec without changing hop_size or window_size
+    pub fn setData<B>(&self, data: Vec<B>) -> WinVec<B> {
+        WinVec {
+            data: data,
+            window_size: self.window_size,
+            hop_size: self.hop_size,
+        }
+    }
 }
