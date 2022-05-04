@@ -10,6 +10,8 @@ edition = "2021"
 ansi_term = "0.12" # for fancy, colored and formatted terminal output!!
 clap = { version = "3.1.10", features = ["cargo", "derive"] }
 dsp = "0.10.2" #for the hamming window!
+glob = "0.3.0" # for foleder iteration
+json = "0.12.4"
 rustfft = "6.0.1" # for computation of stft
 wav_io = "0.1.8" # for conviniently reading csvs.
 conv = "*"

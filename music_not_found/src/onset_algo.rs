@@ -1,18 +1,16 @@
-use std::cmp::{max, min};
-use std::iter::repeat;
-
 use conv::*;
-use dsp::window;
 use rustfft::num_traits::abs;
-use rustfft::{num_complex::Complex, FftPlanner};
+use rustfft::{num_complex::Complex};
 
-use crate::statistics::{convolve1D, normalize, stft, WinVec};
+use crate::statistics::{convolve_1d, normalize, stft, WinVec};
 use crate::track::Track;
 
+#[derive(Clone)]
 pub struct OnsetInput {
     pub samples: Vec<f32>,
     pub stft_2048_1024: WinVec<Vec<Complex<f32>>>,
 }
+
 
 impl OnsetInput {
     pub fn from_track(track: &Track) -> OnsetInput {
@@ -35,7 +33,7 @@ impl OnsetOutput {
         OnsetOutput {
             result: self
                 .result
-                .map(|d| normalize(&convolve1D(&d, kernel_size, &kernel_function))),
+                .map(|d| normalize(&convolve_1d(&d, kernel_size, &kernel_function))),
         }
     }
 }
@@ -104,7 +102,7 @@ impl OnsetAlgorithm for SpectralDifference {
             .collect();
 
         OnsetOutput {
-            result: input.stft_2048_1024.setData(data),
+            result: input.stft_2048_1024.set_data(data),
         }
     }
 }

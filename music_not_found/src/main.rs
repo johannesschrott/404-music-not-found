@@ -1,22 +1,20 @@
 extern crate core;
 
-use std::env;
+use std::{env, thread};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-
 use ansi_term::Style;
 use clap::{Arg, ArgGroup, Command, crate_authors, crate_description, crate_version};
+use glob::{glob};
+use json::JsonValue;
 
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
-use statistics::{convolve1D, normalize, vec_mult};
 use track::Track;
 
-use crate::onset_algo::SpectralDifference;
+use crate::onset_algo::{OnsetOutput, SpectralDifference};
 use crate::peak_picking::PeakPicker;
-
-
 
 mod peak_picking;
 mod onset_algo;
@@ -24,8 +22,6 @@ mod plot;
 mod statistics;
 mod track;
 
-static N_ONSET: usize = 4096;
-static M_ONSET_SIGNAL_ENVELOPE: usize = 10;
 
 /// Accuracy in seconds of the estimated onsets
 static ONSET_ACCURACY: f64 = 50e-3;
@@ -34,6 +30,7 @@ static BEAT_ACCURACY: f64 = 70e-3;
 /// Deviation of which the estimated tempo may be different (+ and -)
 static TEMPO_DEVIATION: f64 = 0.08;
 
+/// Main entrance point for CLI Application
 fn main() {
     #[cfg(target_os = "windows")]
     {
@@ -77,19 +74,26 @@ fn main() {
 
     if arg_matches.is_present("file") && !arg_matches.is_present("dir") {
         process_file(Path::new(arg_matches.value_of("file").expect("required")));
-        // currently nothing is done with the track
     } else if arg_matches.is_present("dir") && !arg_matches.is_present("file") {
-        // Folder processing not implented yet
+        process_folder(Path::new(arg_matches.value_of("dir").expect("required")));
     }
 }
 
-fn process_file(file_path: &Path) {
+fn process_file(file_path: &Path) -> JsonValue {
     let track = Track::from_path(file_path);
-    let sample_rate = track.header.sample_rate;
+    //let sample_rate = track.header.sample_rate;
 
     let onset_input = OnsetInput::from_track(&track);
-    let high_frequency = HighFrequencyContent::find_onsets(&onset_input);
+    /*let sd_thread = thread::spawn(move || {
+
+    });
+    let hf_thread = thread::spawn(move || {
+
+    });*/
+
     let spectral_difference = SpectralDifference::find_onsets(&onset_input);
+
+    let high_frequency: OnsetOutput = HighFrequencyContent::find_onsets(&onset_input);
 
     plot::plot(&high_frequency.result.data, "high freq.png");
     plot::plot(&spectral_difference.result.data, "spectr_diff.png");
@@ -118,7 +122,7 @@ fn process_file(file_path: &Path) {
         local_window_max: 1,
         local_window_mean: 1,
         minimum_distance: 1,
-        delta: 0.
+        delta: 0.,
     };
 
     // Compute f measure for our different results:
@@ -157,7 +161,55 @@ fn process_file(file_path: &Path) {
             .onset_times,
         file_path,
     );
+
+    // Create JSON Part for current file
+    let mut file_json = json::JsonValue::new_object();
+    file_json["onsets"] = json::JsonValue::new_array();
+    file_json["beats"] = json::JsonValue::new_array();
+    file_json["tempo"] = json::JsonValue::new_array();
+
+    // Fill JSON with onsets
+    for onset_time in &peak_picker.pick(&spectral_difference).onset_times(&track).onset_times {
+        file_json["onsets"].push(onset_time.to_owned());
+    }
+
+
+    return file_json;
 }
+
+fn process_folder(folder_path: &Path) {
+    let glob_pattern = [folder_path.to_str().unwrap(), "/*.wav"].join("");
+
+    // create empty json file for submission
+    let mut overall_json_result = json::JsonValue::new_object();
+
+    let mut file_processings = Vec::new();
+
+
+    // for each track create a thread
+    for music_file in glob(&glob_pattern).unwrap() {
+        match music_file {
+            Ok(file_path) => {
+                let file_name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
+                println!("{:?}", file_path.display());
+                let file_processing = thread::spawn(move || {
+                    (file_name, process_file(file_path.as_path()))
+                });
+                file_processings.push(file_processing)
+            }
+            Err(e) => println!("{:?}", e)
+        }
+    }
+
+    // join the threads and put results into json
+    for file_processing in file_processings {
+        let (filename, json_res) = file_processing.join().unwrap();
+        overall_json_result[filename] = json_res;
+    }
+
+    println!("{}", overall_json_result.dump());
+}
+
 
 // fn get_onset_times(output: &Vec<f32>, window_size: usize, sample_rate: u32) ->Vec<f64> {
 //     // Compute times of peaks
@@ -183,28 +235,28 @@ fn process_file(file_path: &Path) {
 //     return onset_times;
 // }
 
-fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) {
+fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> (f64, f64, f64) {
     let file_string_onsets_gt = [
         file_path.to_str().unwrap().strip_suffix(".wav").unwrap(),
         ".onsets.gt",
     ]
-    .join("");
+        .join("");
 
     if !Path::new(&file_string_onsets_gt).exists() {
         // if a onsets.gt file in the same folder exists, do a validation!
-        return;
+        return (0 as f64, 0 as f64, 0 as f64);
     }
     println!("Validation of Found onsets");
     let gt_file = File::open(Path::new(&file_string_onsets_gt)).unwrap();
     let reader = BufReader::new(gt_file);
 
-    /// Vector containing the true onset times (in seconds!)
+    // Vector containing the true onset times (in seconds!)
     let gt_onsets: Vec<f64> = reader.lines().map(|line| line.expect("Error on parsing line")).map(|line| line.parse::<f64>().unwrap()).collect();
 
 
-    /// current index in vector of found onsets
+    // current index in vector of found onsets
     let mut i_found: usize = 0;
-    /// current index in vector of gt onsets
+    // current index in vector of gt onsets
     let mut i_gt: usize = 0;
 
     let mut t_p: usize = 0;
@@ -214,7 +266,7 @@ fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) {
 
     if found_onsets.len() == 0 && gt_onsets.len() != 0 {
         println!("No onsets found :( Something may have gone wrong");
-        return;
+        return (0 as f64, 0 as f64, 0 as f64);
     }
     while i_found < found_onsets.len() && i_gt < gt_onsets.len() {
         if gt_onsets[i_gt] - ONSET_ACCURACY <= found_onsets[i_found]
@@ -242,4 +294,6 @@ fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) {
     println!("Precession: {}", precision);
     println!("Recall:     {}", recall);
     println!("F-Measure:  {}", f_measure);
+
+    return (precision, recall, f_measure);
 }

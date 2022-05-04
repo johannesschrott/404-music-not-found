@@ -58,7 +58,7 @@ impl PeakPicker {
                 && output[i] >= max_window(max_left, max_right);
         }
         Peaks {
-            peaks: onset_output.result.setData(peaks),
+            peaks: onset_output.result.set_data(peaks),
         }
     }
 }

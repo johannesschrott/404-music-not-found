@@ -9,7 +9,7 @@ pub fn normalize(data: &[f32]) -> Vec<f32> {
     data.into_iter().map(|x| (x - mean) / max).collect()
 }
 
-pub fn convolve1D<F>(data: &Vec<f32>, kernel_size: usize, kernel_function: F) -> Vec<f32>
+pub fn convolve_1d<F>(data: &Vec<f32>, kernel_size: usize, kernel_function: F) -> Vec<f32>
 where
     F: Fn(&[f32]) -> f32,
 {
@@ -141,7 +141,7 @@ impl<A> WinVec<A> {
     }
 
     // Set the content of WinVec without changing hop_size or window_size
-    pub fn setData<B>(&self, data: Vec<B>) -> WinVec<B> {
+    pub fn set_data<B>(&self, data: Vec<B>) -> WinVec<B> {
         WinVec {
             data: data,
             window_size: self.window_size,
