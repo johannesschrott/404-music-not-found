@@ -11,12 +11,18 @@ pub struct OnsetInput {
     pub stft_2048_1024: WinVec<Vec<Complex<f32>>>,
 }
 
+fn preprocess(track: &Track, data: WinVec<Vec<Complex<f32>>>) -> WinVec<Vec<Complex<f32>>>{
+    // TODO: Dont know how to apply mel filterbank
+
+    data
+}
 
 impl OnsetInput {
     pub fn from_track(track: &Track) -> OnsetInput {
+
         OnsetInput {
             samples: track.samples.to_owned(),
-            stft_2048_1024: stft(&track.samples, 2048, 1024),
+            stft_2048_1024: preprocess(track, stft(&track.samples, 2048, 1024)),
         }
     }
 }

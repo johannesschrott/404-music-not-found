@@ -116,7 +116,7 @@ pub fn stft(data: &[f32], window_size: usize, hop_size: usize) -> WinVec<Vec<Com
 }
 
 // WinVec<A> is a Wrapper over Vec<A> which keeps track of the used windows size and the hop size
-// That way, we can try easily with different window sizes at the same time 
+// That way, we can try easily with different window sizes at the same time
 
 #[derive(Clone, Debug)]
 pub struct WinVec<A> {
@@ -126,8 +126,6 @@ pub struct WinVec<A> {
 }
 
 impl<A> WinVec<A> {
-
-
     // Map the content of WinVec without changing hop_size or window_size
     pub fn map<F, B>(&self, f: F) -> WinVec<B>
     where
@@ -148,4 +146,16 @@ impl<A> WinVec<A> {
             hop_size: self.hop_size,
         }
     }
+}
+
+fn mel(frequency: f32) -> f32 {
+    2959. * (1. + frequency / 700.).log10()
+}
+
+pub fn mel_filterbank(bins: usize) -> Vec<f32> {
+    let min = mel(27.5);
+    let max = mel(16000.);
+    let step = (max - min) / bins as f32;
+
+    (0..bins).map(|i| min + step * i as f32).collect()
 }
