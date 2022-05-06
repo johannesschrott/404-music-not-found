@@ -1,6 +1,6 @@
 [package]
 name = "music_not_found"
-authors = ["Simon Reitinger, k1190????@students.jku.at", "Johannes Schrott, k11904214@students.jku.at"]
+authors = ["Simon Reitinger, k11908767@students.jku.at", "Johannes Schrott, k11904214@students.jku.at"]
 version = "0.1.0"
 edition = "2021"
 

@@ -157,3 +157,102 @@ fn f_measure_onsets(found_onsets: &Vec<f64>, gt_onsets: &Vec<f64>) {
     println!("Recall:     {}", recall);
     println!("F-Measure:  {}", f_measure);
 }
+
+
+fn process_file(file_path: &Path) -> JsonValue {
+    let track = Track::from_path(file_path);
+    //let sample_rate = track.header.sample_rate;
+
+    let onset_input = OnsetInput::from_track(&track);
+    /*let sd_thread = thread::spawn(move || {
+
+    });
+    let hf_thread = thread::spawn(move || {
+
+    });*/
+
+    let spectral_difference = SpectralDifference::find_onsets(&onset_input);
+
+    let high_frequency: OnsetOutput = HighFrequencyContent::find_onsets(&onset_input);
+
+    // plot::plot(&high_frequency.result.data, "high freq.png");
+    // plot::plot(&spectral_difference.result.data, "spectr_diff.png");
+
+    // let kernel_function = |k: &[f32]| {
+    //     // let neighborhood: Vec<usize> = (0..28).into_iter().chain((37..65).into_iter()).collect();
+    //     // neighborhood.into_iter().map(|x| k[x] * 0.00815).sum::<f32>() +
+    //     //     (k[28] + k[29] + k[35] + k[36]) * 0.03 + (k[30] + k[31] + k[33] + k[34]) * 0.05 + k[32] * 0.16
+    //     (k[0] + k[4]) * (-0.3) + (k[1] + k[3]) * (-0.5) + k[2] * 2.6
+    // };
+
+    // let output: Vec<f32> = normalize(
+    //     &vec_mult(
+    //         &vec![
+    //             &convolve1D(&high_frequency.result, 5, kernel_function)[..],
+    //             &convolve1D(&spectral_difference.result, 5, kernel_function)[..],
+    //         ][..],
+    //     )[..],
+    // );
+
+    // let output = spectral_difference.convolve(5, kernel_function);
+
+    // plot::plot(&output.result.data, "output.png");
+
+    let peak_picker = PeakPicker {
+        local_window_max: 2,
+        local_window_mean: 3,
+        minimum_distance: 2,
+        delta: 0.,
+    };
+
+    // Compute f measure for our different results:
+    // println!(
+    //     "{}",
+    //     Style::new().bold().paint("Convolved Output").to_string()
+    // );
+    // f_measure_onsets(
+    //     &peak_picker.pick(&output).onset_times(&track).onset_times,
+    //     file_path,
+    // );
+    // println!();
+
+    println!(
+        "{}",
+        Style::new().bold().paint("High Frequency").to_string()
+    );
+    f_measure_onsets(
+        &peak_picker.pick(&high_frequency)
+            .onset_times(&track)
+            .onset_times,
+        file_path,
+    );
+    println!();
+
+    println!(
+        "{}",
+        Style::new()
+            .bold()
+            .paint("Spectral Difference Output")
+            .to_string()
+    );
+    f_measure_onsets(
+        &peak_picker.pick(&spectral_difference)
+            .onset_times(&track)
+            .onset_times,
+        file_path,
+    );
+
+    // Create JSON Part for current file
+    let mut file_json = json::JsonValue::new_object();
+    file_json["onsets"] = json::JsonValue::new_array();
+    file_json["beats"] = json::JsonValue::new_array();
+    file_json["tempo"] = json::JsonValue::new_array();
+
+    // Fill JSON with onsets
+    for onset_time in &peak_picker.pick(&spectral_difference).onset_times(&track).onset_times {
+        file_json["onsets"].push(onset_time.to_owned());
+    }
+
+
+    return file_json;
+}

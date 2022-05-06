@@ -1,30 +1,31 @@
 extern crate core;
 
-use std::{env, thread};
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::{env, thread};
 
 use ansi_term::Style;
-use clap::{Arg, ArgGroup, Command, crate_authors, crate_description, crate_version};
-use glob::{glob};
+use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, ArgMatches, Command};
+use f_meausure::FMeasure;
+use glob::glob;
 use json::JsonValue;
 
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use track::Track;
 
+use crate::f_meausure::f_measure_onsets;
 use crate::onset_algo::{OnsetOutput, SpectralDifference};
 use crate::peak_picking::PeakPicker;
 
-mod peak_picking;
+mod f_meausure;
 mod onset_algo;
+mod peak_picking;
 mod plot;
 mod statistics;
 mod track;
 
-
-/// Accuracy in seconds of the estimated onsets
-static ONSET_ACCURACY: f64 = 50e-3;
 /// Accuracy in seconds of the estimated beats
 static BEAT_ACCURACY: f64 = 70e-3;
 /// Deviation of which the estimated tempo may be different (+ and -)
@@ -41,7 +42,7 @@ fn main() {
         Style::new().bold().strikethrough().paint("not").to_string(),
         Style::new().bold().paint(" found").to_string(),
     ]
-        .join("");
+    .join("");
 
     let arg_matches = Command::new(fancy_name)
         .about(crate_description!())
@@ -65,6 +66,14 @@ fn main() {
                 .takes_value(true)
                 .value_name("DIRECTORY PATH"),
         )
+        .arg(
+            Arg::new("competition")
+                .short('c')
+                .long("competition")
+                .help("Writes Competition JSON")
+                .takes_value(true)
+                .value_name("JSON OUTPUT PATH"),
+        )
         .group(
             ArgGroup::new("source")
                 .required(true)
@@ -73,90 +82,73 @@ fn main() {
         .get_matches();
 
     if arg_matches.is_present("file") && !arg_matches.is_present("dir") {
-        process_file(Path::new(arg_matches.value_of("file").expect("required")));
+        let output = process_file(Path::new(arg_matches.value_of("file").expect("required")));
+        handle_output(arg_matches, output);
     } else if arg_matches.is_present("dir") && !arg_matches.is_present("file") {
-        process_folder(Path::new(arg_matches.value_of("dir").expect("required")));
+        let output = process_folder(Path::new(arg_matches.value_of("dir").expect("required")));
+        handle_output(arg_matches, output);
     }
 }
 
-fn process_file(file_path: &Path) -> JsonValue {
+fn handle_output(arg_matches: ArgMatches, output: (Option<FMeasure>, JsonValue)) {
+    println!("{}", Style::new().bold().paint("F Measure").to_string());
+
+    if let Some(f_measure) = output.0 {
+        println!("Precession: {}", f_measure.precision);
+        println!("Recall:     {}", f_measure.recall);
+        println!("F-Measure:  {}", f_measure.score);
+    } else {
+        println!("No F_Measure Data");
+    }
+    if arg_matches.is_present("competition") {
+        let path = arg_matches
+            .value_of("competition")
+            .expect("path for competition flag is needed");
+        match fs::write(path, output.1.dump()) {
+            Ok(()) => (),
+            Err(error) => println!("{}", error),
+        }
+    }
+}
+
+fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     let track = Track::from_path(file_path);
-    //let sample_rate = track.header.sample_rate;
 
     let onset_input = OnsetInput::from_track(&track);
-    /*let sd_thread = thread::spawn(move || {
-
-    });
-    let hf_thread = thread::spawn(move || {
-
-    });*/
 
     let spectral_difference = SpectralDifference::find_onsets(&onset_input);
 
-    let high_frequency: OnsetOutput = HighFrequencyContent::find_onsets(&onset_input);
-
-    plot::plot(&high_frequency.result.data, "high freq.png");
-    plot::plot(&spectral_difference.result.data, "spectr_diff.png");
-
-    let kernel_function = |k: &[f32]| {
-        // let neighborhood: Vec<usize> = (0..28).into_iter().chain((37..65).into_iter()).collect();
-        // neighborhood.into_iter().map(|x| k[x] * 0.00815).sum::<f32>() +
-        //     (k[28] + k[29] + k[35] + k[36]) * 0.03 + (k[30] + k[31] + k[33] + k[34]) * 0.05 + k[32] * 0.16
-        (k[0] + k[4]) * (-0.3) + (k[1] + k[3]) * (-0.5) + k[2] * 2.6
-    };
-
-    // let output: Vec<f32> = normalize(
-    //     &vec_mult(
-    //         &vec![
-    //             &convolve1D(&high_frequency.result, 5, kernel_function)[..],
-    //             &convolve1D(&spectral_difference.result, 5, kernel_function)[..],
-    //         ][..],
-    //     )[..],
-    // );
-
-    let output = spectral_difference.convolve(5, kernel_function);
-
-    plot::plot(&output.result.data, "output.png");
+    // let high_frequency: OnsetOutput = HighFrequencyContent::find_onsets(&onset_input);
 
     let peak_picker = PeakPicker {
-        local_window_max: 1,
-        local_window_mean: 1,
-        minimum_distance: 1,
+        local_window_max: 2,
+        local_window_mean: 3,
+        minimum_distance: 2,
         delta: 0.,
     };
 
-    // Compute f measure for our different results:
-    println!(
-        "{}",
-        Style::new().bold().paint("Convolved Output").to_string()
-    );
-    f_measure_onsets(
-        &peak_picker.pick(&output).onset_times(&track).onset_times,
-        file_path,
-    );
-    println!();
+    // println!(
+    //     "{}",
+    //     Style::new().bold().paint("High Frequency").to_string()
+    // );
+    // f_measure_onsets(
+    //     &peak_picker.pick(&high_frequency)
+    //         .onset_times(&track)
+    //         .onset_times,
+    //     file_path,
+    // );
+    // println!();
 
-    println!(
-        "{}",
-        Style::new().bold().paint("High Frequency").to_string()
-    );
-    f_measure_onsets(
-        &peak_picker.pick(&high_frequency)
-            .onset_times(&track)
-            .onset_times,
-        file_path,
-    );
-    println!();
-
-    println!(
-        "{}",
-        Style::new()
-            .bold()
-            .paint("Spectral Difference Output")
-            .to_string()
-    );
-    f_measure_onsets(
-        &peak_picker.pick(&spectral_difference)
+    // println!(
+    //     "{}",
+    //     Style::new()
+    //         .bold()
+    //         .paint("Spectral Difference Output")
+    //         .to_string()
+    // );
+    let f_measure = f_measure_onsets(
+        &peak_picker
+            .pick(&spectral_difference)
             .onset_times(&track)
             .onset_times,
         file_path,
@@ -169,15 +161,18 @@ fn process_file(file_path: &Path) -> JsonValue {
     file_json["tempo"] = json::JsonValue::new_array();
 
     // Fill JSON with onsets
-    for onset_time in &peak_picker.pick(&spectral_difference).onset_times(&track).onset_times {
+    for onset_time in &peak_picker
+        .pick(&spectral_difference)
+        .onset_times(&track)
+        .onset_times
+    {
         file_json["onsets"].push(onset_time.to_owned());
     }
 
-
-    return file_json;
+    return (f_measure, file_json);
 }
 
-fn process_folder(folder_path: &Path) {
+fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
     let glob_pattern = [folder_path.to_str().unwrap(), "/*.wav"].join("");
 
     // create empty json file for submission
@@ -185,31 +180,72 @@ fn process_folder(folder_path: &Path) {
 
     let mut file_processings = Vec::new();
 
-
+    let files = glob(&glob_pattern).unwrap();
+    let file_count_ref = Arc::new(Mutex::new(0));
+    let done_count_ref = Arc::new(Mutex::new(0));
     // for each track create a thread
-    for music_file in glob(&glob_pattern).unwrap() {
+    for music_file in files {
+        let file_count_ref_cloned = file_count_ref.clone();
+        let mut file_count = file_count_ref_cloned.lock().unwrap();
+        *file_count += 1;
         match music_file {
             Ok(file_path) => {
                 let file_name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
-                println!("{:?}", file_path.display());
+                let local_state = (file_count_ref.clone(), done_count_ref.clone());
                 let file_processing = thread::spawn(move || {
-                    (file_name, process_file(file_path.as_path()))
+                    let output = (file_name, process_file(file_path.as_path()));
+
+                    let mut done_count = local_state.1.lock().unwrap();
+                    *done_count += 1;
+
+                    let file_count = local_state.0.lock().unwrap();
+
+                    println!("{} of {} done", done_count, *file_count);
+                    output
                 });
-                file_processings.push(file_processing)
+                file_processings.push(file_processing);
             }
-            Err(e) => println!("{:?}", e)
+            Err(e) => println!("{:?}", e),
         }
     }
 
+    let mut f_measures = Vec::new();
+
     // join the threads and put results into json
     for file_processing in file_processings {
-        let (filename, json_res) = file_processing.join().unwrap();
+        let (filename, (measure, json_res)) = file_processing.join().unwrap();
         overall_json_result[filename] = json_res;
+        f_measures.push(measure);
+    }
+    let mut precision = 0.;
+    let mut recall = 0.;
+    let mut score = 0.;
+    let mut count = 0;
+
+    for f_measure_ in f_measures {
+        if let Some(f_measure) = f_measure_ {
+            precision += f_measure.precision;
+            recall += f_measure.recall;
+            score += f_measure.score;
+            count += 1;
+        }
     }
 
-    println!("{}", overall_json_result.dump());
-}
+    let count_f = count as f64;
 
+    (
+        if count > 0 {
+            Some(FMeasure {
+                precision: precision / count_f,
+                recall: recall / count_f,
+                score: score / count_f,
+            })
+        } else {
+            None
+        },
+        overall_json_result,
+    )
+}
 
 // fn get_onset_times(output: &Vec<f32>, window_size: usize, sample_rate: u32) ->Vec<f64> {
 //     // Compute times of peaks
@@ -234,66 +270,3 @@ fn process_folder(folder_path: &Path) {
 //     }
 //     return onset_times;
 // }
-
-fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> (f64, f64, f64) {
-    let file_string_onsets_gt = [
-        file_path.to_str().unwrap().strip_suffix(".wav").unwrap(),
-        ".onsets.gt",
-    ]
-        .join("");
-
-    if !Path::new(&file_string_onsets_gt).exists() {
-        // if a onsets.gt file in the same folder exists, do a validation!
-        return (0 as f64, 0 as f64, 0 as f64);
-    }
-    println!("Validation of Found onsets");
-    let gt_file = File::open(Path::new(&file_string_onsets_gt)).unwrap();
-    let reader = BufReader::new(gt_file);
-
-    // Vector containing the true onset times (in seconds!)
-    let gt_onsets: Vec<f64> = reader.lines().map(|line| line.expect("Error on parsing line")).map(|line| line.parse::<f64>().unwrap()).collect();
-
-
-    // current index in vector of found onsets
-    let mut i_found: usize = 0;
-    // current index in vector of gt onsets
-    let mut i_gt: usize = 0;
-
-    let mut t_p: usize = 0;
-    let t_n: usize = 0; // There are no true negatives!
-    let mut f_p: usize = 0;
-    let mut f_n: usize = 0;
-
-    if found_onsets.len() == 0 && gt_onsets.len() != 0 {
-        println!("No onsets found :( Something may have gone wrong");
-        return (0 as f64, 0 as f64, 0 as f64);
-    }
-    while i_found < found_onsets.len() && i_gt < gt_onsets.len() {
-        if gt_onsets[i_gt] - ONSET_ACCURACY <= found_onsets[i_found]
-            && found_onsets[i_found] <= gt_onsets[i_gt] + ONSET_ACCURACY
-        {
-            // the found onset is within the accuracy border
-            t_p += 1;
-            i_found += 1;
-            i_gt += 1;
-        } else if found_onsets[i_found] < gt_onsets[i_gt] - ONSET_ACCURACY {
-            f_p += 1;
-            i_found += 1;
-        } else if gt_onsets[i_gt] + ONSET_ACCURACY < found_onsets[i_found] {
-            f_n += 1;
-            i_gt += 1;
-        }
-    }
-    if i_gt < gt_onsets.len() {
-        f_n += gt_onsets.len() - i_gt;
-    }
-    let precision: f64 = t_p as f64 / (t_p as f64 + f_p as f64);
-    let recall: f64 = t_p as f64 / (t_p as f64 + f_n as f64);
-    let f_measure: f64 = 2f64 * (precision * recall) / (precision + recall);
-
-    println!("Precession: {}", precision);
-    println!("Recall:     {}", recall);
-    println!("F-Measure:  {}", f_measure);
-
-    return (precision, recall, f_measure);
-}
