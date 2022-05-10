@@ -51,10 +51,10 @@ impl PeakPicker {
             let max_left = max(i, self.local_window_max) - self.local_window_max;
             let max_right = min(output.len(), i + self.local_window_max + 1);
 
-            peaks[i] = (output[i - 1] < output[i] && output[i] > output[i + 1] ) // checks if a peak
+            peaks[i] = output[i - 1] < output[i] && output[i] > output[i + 1]  // checks if a peak
             // implement adaptive peak picking
                 && minimum_distance(i, &peaks)
-                && output[i] >= mean_window(mean_left, mean_right)
+                && output[i] >= mean_window(mean_left, mean_right) + self.delta
                 && output[i] >= max_window(max_left, max_right);
         }
         Peaks {

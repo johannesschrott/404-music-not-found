@@ -148,7 +148,7 @@ impl<A> WinVec<A> {
     }
 }
 
-fn mel(frequency: f32) -> f32 {
+pub fn mel(frequency: f32) -> f32 {
     2959. * (1. + frequency / 700.).log10()
 }
 

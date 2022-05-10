@@ -1,22 +1,22 @@
 extern crate core;
 
+use std::{env, thread};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::{env, thread};
 
 use ansi_term::Style;
-use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, ArgMatches, Command};
-use f_meausure::FMeasure;
+use clap::{Arg, ArgGroup, ArgMatches, Command, crate_authors, crate_description, crate_version};
 use glob::glob;
 use json::JsonValue;
 
+use f_meausure::FMeasure;
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use track::Track;
 
 use crate::f_meausure::f_measure_onsets;
-use crate::onset_algo::{OnsetOutput, SpectralDifference};
+use crate::onset_algo::{LFSF, OnsetOutput, SpectralDifference};
 use crate::peak_picking::PeakPicker;
 
 mod f_meausure;
@@ -42,7 +42,7 @@ fn main() {
         Style::new().bold().strikethrough().paint("not").to_string(),
         Style::new().bold().paint(" found").to_string(),
     ]
-    .join("");
+        .join("");
 
     let arg_matches = Command::new(fancy_name)
         .about(crate_description!())
@@ -118,13 +118,14 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
 
     let spectral_difference = SpectralDifference::find_onsets(&onset_input);
 
+    let lfsf = LFSF::find_onsets(&onset_input);
     // let high_frequency: OnsetOutput = HighFrequencyContent::find_onsets(&onset_input);
 
     let peak_picker = PeakPicker {
-        local_window_max: 2,
-        local_window_mean: 3,
+        local_window_max: 1,
+        local_window_mean: 5, // the higher, the lower the recall but precission slightly increases
         minimum_distance: 2,
-        delta: 0.,
+        delta: 0.0, // must be relatively tiny
     };
 
     // println!(
@@ -148,7 +149,7 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     // );
     let f_measure = f_measure_onsets(
         &peak_picker
-            .pick(&spectral_difference)
+            .pick(&lfsf)
             .onset_times(&track)
             .onset_times,
         file_path,
