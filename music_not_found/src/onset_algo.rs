@@ -15,7 +15,7 @@ pub struct OnsetInput {
 fn preprocess_mel(track: &Track, data: WinVec<Vec<Complex<f32>>>) -> WinVec<Vec<f32>> {
     // TODO: Dont know how to apply mel filterbank
 
-    let mel_data = data.data.iter().map(|single_fft| single_fft.iter().map(|comp| mel(comp.re)).collect::<Vec<f32>>()).collect::<Vec<Vec<f32>>>();
+    let mel_data = data.data.iter().map(|single_fft| single_fft.iter().map(|comp| mel(comp.norm())).collect::<Vec<f32>>()).collect::<Vec<Vec<f32>>>();
 
     let sampling_rate = track.header.sample_rate.to_owned();
 
@@ -108,7 +108,7 @@ impl OnsetAlgorithm for SpectralDifference {
             let mut sd: Vec<f32> = Vec::new();
             // formula for sd see slide 24 in L04.pdf
             for j in 0..stft_len {
-                let x: f32 = (data[i][j].re - data[i - 1][j].re).powi(2);
+                let x: f32 = (data[i][j].norm() - data[i - 1][j].norm()).powi(2);
                 sd.push((x + abs(x)) / 2 as f32)
             }
             spectral_differences.push(sd);
@@ -163,15 +163,15 @@ impl OnsetAlgorithm for LFSF {
                 if (mid as usize) < input.stft_1024_512.data.get(i).unwrap().len() {
                     for k in lower..mid {
                         sum_norm += (abs(k - lower) as f32) / ((mid - lower) as f32);
-                        let t1 = input.stft_1024_512.data.get(i).unwrap().get(k as usize).unwrap().re;
+                        let t1 = input.stft_1024_512.data.get(i).unwrap().get(k as usize).unwrap().norm();
                         let t2 = (abs(k - lower) as f32) / ((mid - lower) as f32);
-                        sum += mel(input.stft_1024_512.data.get(i).unwrap().get(k as usize).unwrap().re) * (abs(k - lower) as f32) / ((mid - lower) as f32);
+                        sum += mel(input.stft_1024_512.data.get(i).unwrap().get(k as usize).unwrap().norm()) * (abs(k - lower) as f32) / ((mid - lower) as f32);
                     }
                 }
                 if (higher as usize) < input.stft_1024_512.data.get(i).unwrap().len() {
                     for k in mid..higher {
                         sum_norm += 1. - (abs(higher - k) as f32) / ((higher - mid) as f32);
-                        sum += mel(input.stft_1024_512.data.get(i).unwrap().get(k as usize).unwrap().re) * (1. - (abs(higher - k) as f32) / ((higher - mid) as f32));
+                        sum += mel(input.stft_1024_512.data.get(i).unwrap().get(k as usize).unwrap().norm()) * (1. - (abs(higher - k) as f32) / ((higher - mid) as f32));
                     }
                 }
                 let val = sum / sum_norm;
