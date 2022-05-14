@@ -3,12 +3,15 @@ use std::{
     iter::repeat,
 };
 
+use serde::*;
+
 use crate::{onset_algo::OnsetOutput, statistics::WinVec, track::Track};
 
 pub struct Peaks {
     pub peaks: WinVec<bool>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct PeakPicker {
     pub local_window_max: usize,  // == w1 == w2
     pub local_window_mean: usize, // == w3 == w4

@@ -18,3 +18,8 @@ conv = "*"
 plotters = "^0.3.1"
 find_peaks = "*"
 convolve2d = "*"
+mel_filter = "*"
+simple_optimization = "*"
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+float-cmp = "*"

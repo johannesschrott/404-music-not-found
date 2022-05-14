@@ -1,26 +1,27 @@
 extern crate core;
 
-use std::{env, thread};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::{env, thread};
 
 use ansi_term::Style;
-use clap::{Arg, ArgGroup, ArgMatches, Command, crate_authors, crate_description, crate_version};
+use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, ArgMatches, Command};
 use glob::glob;
 use json::JsonValue;
 
-use f_meausure::FMeasure;
+use f_meausure::{combine_onsets, FMeasure};
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use track::Track;
 
 use crate::f_meausure::f_measure_onsets;
-use crate::onset_algo::{LFSF, OnsetOutput, SpectralDifference};
+use crate::onset_algo::{OnsetOutput, SpectralDifference, LFSF};
 use crate::peak_picking::PeakPicker;
 
 mod f_meausure;
 mod onset_algo;
+mod optimize;
 mod peak_picking;
 mod plot;
 mod statistics;
@@ -30,6 +31,8 @@ mod track;
 static BEAT_ACCURACY: f64 = 70e-3;
 /// Deviation of which the estimated tempo may be different (+ and -)
 static TEMPO_DEVIATION: f64 = 0.08;
+
+const ENSEMBLE_NEEDED_SCORE: f64 = 1.0;
 
 /// Main entrance point for CLI Application
 fn main() {
@@ -42,7 +45,7 @@ fn main() {
         Style::new().bold().strikethrough().paint("not").to_string(),
         Style::new().bold().paint(" found").to_string(),
     ]
-        .join("");
+    .join("");
 
     let arg_matches = Command::new(fancy_name)
         .about(crate_description!())
@@ -114,46 +117,54 @@ fn handle_output(arg_matches: ArgMatches, output: (Option<FMeasure>, JsonValue))
 fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     let track = Track::from_path(file_path);
 
-    let onset_input = OnsetInput::from_track(&track);
+    let onset_input_big = OnsetInput::from_track(&track, 2048, 1024);
+    let onset_input_small = OnsetInput::from_track(&track, 1024, 441);
 
-    let spectral_difference = SpectralDifference::find_onsets(&onset_input);
+    let spectral_small = SpectralDifference.find_onsets(&track, &onset_input_small);
+    let spectral_big = SpectralDifference.find_onsets(&track, &onset_input_big);
 
-    let lfsf = LFSF::find_onsets(&onset_input);
+    let lfsf_small = LFSF { log_lambda: 0.7 }.find_onsets(&track, &onset_input_small);
+    let lfsf_big = LFSF { log_lambda: 0.7 }.find_onsets(&track, &onset_input_big);
+
     // let high_frequency: OnsetOutput = HighFrequencyContent::find_onsets(&onset_input);
 
-    let peak_picker = PeakPicker {
-        local_window_max: 1,
-        local_window_mean: 5, // the higher, the lower the recall but precission slightly increases
-        minimum_distance: 2,
-        delta: 0.0, // must be relatively tiny
+    let peak_picker_small = PeakPicker {
+        local_window_max: 7,
+        local_window_mean: 7, // the higher, the lower the recall but precission slightly increases
+        minimum_distance: 3,
+        delta: 0.1, // must be relatively tiny
     };
 
-    // println!(
-    //     "{}",
-    //     Style::new().bold().paint("High Frequency").to_string()
-    // );
-    // f_measure_onsets(
-    //     &peak_picker.pick(&high_frequency)
-    //         .onset_times(&track)
-    //         .onset_times,
+    let peak_picker_big = PeakPicker {
+        local_window_max: 3,
+        local_window_mean: 3, // the higher, the lower the recall but precission slightly increases
+        minimum_distance: 1,
+        delta: 0.1, // must be relatively tiny
+    };
+
+    // let f_measure_spectral_small = f_measure_onsets(
+    //     &peak_picker_small.pick(&spectral_small).onset_times(&track).onset_times,
     //     file_path,
     // );
-    // println!();
+    let f_score_spectral_small = 0.6785112079439675;
 
-    // println!(
-    //     "{}",
-    //     Style::new()
-    //         .bold()
-    //         .paint("Spectral Difference Output")
-    //         .to_string()
+    // let f_measure_spectral_big = f_measure_onsets(
+    //     &peak_picker_big.pick(&spectral_big).onset_times(&track).onset_times,
+    //     file_path,
     // );
-    let f_measure = f_measure_onsets(
-        &peak_picker
-            .pick(&lfsf)
-            .onset_times(&track)
-            .onset_times,
-        file_path,
-    );
+    let f_score_spectral_big = 0.6935366986327169;
+
+    // let f_measure_lfsf_small = f_measure_onsets(
+    //     &peak_picker_small.pick(&lfsf_small).onset_times(&track).onset_times,
+    //     file_path,
+    // );
+    let f_score_lfsf_small = 0.7216659749653946;
+
+    // let f_measure_lfsf_big = f_measure_onsets(
+    //     &peak_picker_big.pick(&lfsf_big).onset_times(&track).onset_times,
+    //     file_path,
+    // );
+    let f_score_lfsf_big = 0.757551539129664;
 
     // Create JSON Part for current file
     let mut file_json = json::JsonValue::new_object();
@@ -161,16 +172,43 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     file_json["beats"] = json::JsonValue::new_array();
     file_json["tempo"] = json::JsonValue::new_array();
 
+    let combined_onset = combine_onsets(ENSEMBLE_NEEDED_SCORE, vec![
+        (
+            f_score_lfsf_small,
+            peak_picker_small
+                .pick(&lfsf_small)
+                .onset_times(&track)
+                .onset_times,
+        ),
+        (
+            f_score_lfsf_big,
+            peak_picker_big
+                .pick(&lfsf_big)
+                .onset_times(&track)
+                .onset_times,
+        ),
+        (
+            f_score_spectral_small,
+            peak_picker_small
+                .pick(&spectral_small)
+                .onset_times(&track)
+                .onset_times,
+        ),
+        (
+            f_score_spectral_big,
+            peak_picker_big
+                .pick(&spectral_big)
+                .onset_times(&track)
+                .onset_times,
+        ),
+    ]);
+
     // Fill JSON with onsets
-    for onset_time in &peak_picker
-        .pick(&spectral_difference)
-        .onset_times(&track)
-        .onset_times
-    {
+    for onset_time in combined_onset.iter() {
         file_json["onsets"].push(onset_time.to_owned());
     }
 
-    return (f_measure, file_json);
+    return (f_measure_onsets(&combined_onset, file_path), file_json);
 }
 
 fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {

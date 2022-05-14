@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     fs::File,
     io::{BufRead, BufReader},
     path::Path,
@@ -11,6 +12,51 @@ pub struct FMeasure {
     pub precision: f64,
     pub recall: f64,
     pub score: f64,
+}
+
+pub fn combine_onsets(needed_score: f64, onsets: Vec<(f64, Vec<f64>)>) -> Vec<f64> {
+    let mut combined_values = Vec::new();
+
+    for (score, vec) in onsets {
+        for x in vec {
+            combined_values.push((x, score));
+        }
+    }
+
+    combined_values.sort_by(|(a, _), (b, _)| {
+        if b > a {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
+    });
+
+    let mut combined = Vec::new();
+
+    let mut time = 0.;
+    let mut i = 0;
+
+    while i < combined_values.len() {
+        let (t, _) = combined_values[i];
+        if t < time {
+            i += 1;
+            continue;
+        }
+
+        time = t;
+
+        let mut scores = Vec::new();
+        while (i < combined_values.len() && combined_values[i].0 - time <= ONSET_ACCURACY) {
+            scores.push(combined_values[i].1);
+            i += 1;
+        }
+
+        if scores.into_iter().sum::<f64>() > needed_score {
+            combined.push(time);
+        }
+    }
+
+    combined
 }
 
 pub fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> Option<FMeasure> {
