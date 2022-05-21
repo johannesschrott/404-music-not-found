@@ -5,10 +5,12 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::{env, thread};
+use std::borrow::Borrow;
+use std::slice::Chunks;
 
 use ansi_term::Style;
 use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, ArgMatches, Command};
-use glob::glob;
+use glob::{glob, GlobResult};
 use json::JsonValue;
 
 use f_meausure::{combine_onsets, FMeasure};
@@ -36,6 +38,8 @@ static BEAT_ACCURACY: f64 = 70e-3;
 static TEMPO_DEVIATION: f64 = 0.08;
 
 const ENSEMBLE_NEEDED_SCORE: f64 = 1.;
+
+const NO_THEADS: usize = 12;
 
 /// Main entrance point for CLI Application
 fn main() {
@@ -248,48 +252,87 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
 fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
     let glob_pattern = [folder_path.to_str().unwrap(), "/*.wav"].join("");
 
+
     // create empty json file for submission
     let mut overall_json_result = json::JsonValue::new_object();
 
-    let mut file_processings = Vec::new();
 
     let files = glob(&glob_pattern).unwrap();
     let file_count_ref = Arc::new(Mutex::new(0));
     let done_count_ref = Arc::new(Mutex::new(0));
-    // for each track create a thread
-    for music_file in files {
-        let file_count_ref_cloned = file_count_ref.clone();
-        let mut file_count = file_count_ref_cloned.lock().unwrap();
-        *file_count += 1;
-        match music_file {
+
+    /*
+    Create a list of file names to be processed
+     */
+    let mut file_names: Vec<String> = Vec::new();
+
+    files.for_each(|file| {
+        match file {
             Ok(file_path) => {
-                let file_name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
-                let local_state = (file_count_ref.clone(), done_count_ref.clone());
-                let file_processing = thread::spawn(move || {
-                    let output = (file_name, process_file(file_path.as_path()));
-
-                    let mut done_count = local_state.1.lock().unwrap();
-                    *done_count += 1;
-
-                    let file_count = local_state.0.lock().unwrap();
-
-                    println!("{} of {} done", done_count, *file_count);
-                    output
-                });
-                file_processings.push(file_processing);
-            }
+         //       file_names.push(file_path.file_stem().unwrap().to_str().unwrap().to_owned());
+                file_names.push(file_path.as_path().to_str().unwrap().to_owned())
+               }
             Err(e) => println!("{:?}", e),
         }
+    });
+
+    /*
+    Create threads in chunks through splitting the file names list
+     */
+
+    let mut chunks = Vec::new();
+
+
+    for chunk in file_names.to_owned().chunks(NO_THEADS) {
+        chunks.push(chunk.to_owned());
     }
 
     let mut f_measures = Vec::new();
 
-    // join the threads and put results into json
-    for file_processing in file_processings {
-        let (filename, (measure, json_res)) = file_processing.join().unwrap();
-        overall_json_result[filename] = json_res;
-        f_measures.push(measure);
+
+    for chunk in chunks {
+        let mut file_processings = Vec::new();
+
+        // for each track create a thread
+        for file_name in chunk {
+
+            let file_count_ref_cloned = file_count_ref.clone();
+            let mut file_count = file_count_ref_cloned.lock().unwrap();
+            *file_count += 1;
+       //     match music_file {
+              //  Ok(file_path) => {
+                //    let file_name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
+                    let local_state = (file_count_ref.clone(), done_count_ref.clone());
+                    let file_processing = thread::spawn(move || {
+                        let file_path = Path::new(&file_name);
+
+                        let name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
+
+                        let output = (name, process_file(file_path));
+
+                        let mut done_count = local_state.1.lock().unwrap();
+                        *done_count += 1;
+
+                        let file_count = local_state.0.lock().unwrap();
+
+                        println!("{} of {} done", done_count, *file_count);
+                        output
+                    });
+                    file_processings.push(file_processing);
+         //       }
+          //      Err(e) => println!("{:?}", e),
+            //}
+        }
+        // join the threads and put results into json
+        for file_processing in file_processings {
+            let (filename, (measure, json_res)) = file_processing.join().unwrap();
+            overall_json_result[filename] = json_res;
+            f_measures.push(measure);
+        }
     }
+
+
+
     let mut precision = 0.;
     let mut recall = 0.;
     let mut score = 0.;

@@ -146,7 +146,7 @@ pub fn f_measure_beats(found_beats: &Vec<f64>, file_path: &Path) -> Option<FMeas
         .lines()
         .map(|line| line.expect("Error on parsing line"))
         .map(|line| {
-            println!("{}", line.split_whitespace().collect::<Vec<&str>>()[0]);
+//            println!("{}", line.split_whitespace().collect::<Vec<&str>>()[0]);
             return line.split_whitespace().collect::<Vec<&str>>()[0].parse::<f64>().unwrap();
         })
         .collect();
