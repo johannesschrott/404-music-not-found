@@ -73,7 +73,7 @@ impl Peaks {
         for i in 0..self.peaks.data.len() {
             if self.peaks.data[i] {
                 onset_times.push(
-                    i as f64
+                    (i as f64 + 1.5)
                         * (self.peaks.hop_size as f64 / (track.header.sample_rate as f64)),
                 );
             }

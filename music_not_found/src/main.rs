@@ -1,28 +1,31 @@
 extern crate core;
 
+use std::borrow::Borrow;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+use std::slice::Chunks;
 use std::sync::{Arc, Mutex};
 use std::{env, thread};
-use std::borrow::Borrow;
-use std::slice::Chunks;
 
 use ansi_term::Style;
+use beat_tracking::get_tempo;
 use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, ArgMatches, Command};
 use glob::{glob, GlobResult};
 use json::JsonValue;
 
+use crate::beat_tracking::get_beats;
 use f_meausure::{combine_onsets, FMeasure};
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
+use peak_picking::OnsetTimes;
 use track::Track;
-use crate::beat_tracking::get_beats;
 
 use crate::f_meausure::{f_measure_beats, f_measure_onsets};
 use crate::onset_algo::{OnsetOutput, SpectralDifference, LFSF};
 use crate::peak_picking::PeakPicker;
 use crate::statistics::WinVec;
 
+mod beat_tracking;
 mod f_meausure;
 mod onset_algo;
 mod optimize;
@@ -30,7 +33,6 @@ mod peak_picking;
 mod plot;
 mod statistics;
 mod track;
-mod beat_tracking;
 
 /// Accuracy in seconds of the estimated beats
 static BEAT_ACCURACY: f64 = 70e-3;
@@ -179,83 +181,65 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     file_json["beats"] = json::JsonValue::new_array();
     file_json["tempo"] = json::JsonValue::new_array();
 
-    let combined_onset = combine_onsets(ENSEMBLE_NEEDED_SCORE, vec![
-        (
-            f_score_lfsf_small,
-            peak_picker_small
-                .pick(&lfsf_small)
-                .onset_times(&track)
-                .onset_times,
-        ),
-        (
-            f_score_lfsf_big,
-            peak_picker_big
-                .pick(&lfsf_big)
-                .onset_times(&track)
-                .onset_times,
-        ),
-       /* (
-            f_score_spectral_small,
-            peak_picker_small
-                .pick(&spectral_small)
-                .onset_times(&track)
-                .onset_times,
-        ),
-        (
-            f_score_spectral_big,
-            peak_picker_big
-                .pick(&spectral_big)
-                .onset_times(&track)
-                .onset_times,
-        ),*/
-    ]);
+    let combined_onset = combine_onsets(
+        ENSEMBLE_NEEDED_SCORE,
+        vec![
+            (
+                f_score_lfsf_small,
+                peak_picker_small
+                    .pick(&lfsf_small)
+                    .onset_times(&track)
+                    .onset_times,
+            ),
+            (
+                f_score_lfsf_big,
+                peak_picker_big
+                    .pick(&lfsf_big)
+                    .onset_times(&track)
+                    .onset_times,
+            ),
+            /* (
+                f_score_spectral_small,
+                peak_picker_small
+                    .pick(&spectral_small)
+                    .onset_times(&track)
+                    .onset_times,
+            ),
+            (
+                f_score_spectral_big,
+                peak_picker_big
+                    .pick(&spectral_big)
+                    .onset_times(&track)
+                    .onset_times,
+            ),*/
+        ],
+    );
 
     // try to compute beat tracking
-    let raw_beats = get_beats(&lfsf_small.result.data);
+    let tempo = get_tempo(&track, &lfsf_small.result);
 
-    let beats = raw_beats.iter().to_owned().map(|&f| f as f32).collect::<Vec<f32>>();
+    let beats = get_beats(tempo.0, &combined_onset);
 
-    let peak_picker_beats = PeakPicker {
-        local_window_max: 0,
-        local_window_mean: 0, // the higher, the lower the recall but precission slightly increases
-        minimum_distance: 0,
-        delta: 0.00, // must be relatively tiny
-    };
-    let beats = OnsetOutput {
-        result: WinVec {
-            data: beats,
-            window_size: lfsf_small.result.window_size,
-            hop_size: lfsf_small.result.hop_size
-        }
-    };
-
-    let combined_beat = combine_onsets(ENSEMBLE_NEEDED_SCORE, vec![
-        (
-            f_score_lfsf_small,
-            peak_picker_beats
-                .pick(&beats)
-                .onset_times(&track)
-                .onset_times,
-        )
-        ]);
     // Fill JSON with onsets
+    let onsets_json = &mut file_json["onsets"];
+
     for onset_time in combined_onset.iter() {
-        file_json["onsets"].push(onset_time.to_owned());
+        onsets_json.push(onset_time.to_owned()).unwrap();
     }
-    for beat_time in combined_beat.iter() {
-        file_json["beats"].push(beat_time.to_owned());
+    let beats_json = &mut file_json["beats"];
+
+    for beat_time in beats.beats.iter() {
+        beats_json.push(beat_time.to_owned()).unwrap();
     }
-   // return (f_measure_onsets(&combined_onset, file_path), file_json);
-    return (f_measure_beats(&combined_beat, file_path), file_json);
+    // return (f_measure_onsets(&combined_onset, file_path), file_json);
+    return (f_measure_beats(&beats.beats, file_path), file_json);
 }
 
 fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
     let glob_pattern = [folder_path.to_str().unwrap(), "/*.wav"].join("");
 
-
     // create empty json file for submission
     let mut overall_json_result = json::JsonValue::new_object();
-
 
     let files = glob(&glob_pattern).unwrap();
     let file_count_ref = Arc::new(Mutex::new(0));
@@ -269,9 +253,9 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
     files.for_each(|file| {
         match file {
             Ok(file_path) => {
-         //       file_names.push(file_path.file_stem().unwrap().to_str().unwrap().to_owned());
+                //       file_names.push(file_path.file_stem().unwrap().to_str().unwrap().to_owned());
                 file_names.push(file_path.as_path().to_str().unwrap().to_owned())
-               }
+            }
             Err(e) => println!("{:?}", e),
         }
     });
@@ -282,45 +266,42 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
 
     let mut chunks = Vec::new();
 
-
     for chunk in file_names.to_owned().chunks(NO_THEADS) {
         chunks.push(chunk.to_owned());
     }
 
     let mut f_measures = Vec::new();
 
-
     for chunk in chunks {
         let mut file_processings = Vec::new();
 
         // for each track create a thread
         for file_name in chunk {
-
             let file_count_ref_cloned = file_count_ref.clone();
             let mut file_count = file_count_ref_cloned.lock().unwrap();
             *file_count += 1;
-       //     match music_file {
-              //  Ok(file_path) => {
-                //    let file_name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
-                    let local_state = (file_count_ref.clone(), done_count_ref.clone());
-                    let file_processing = thread::spawn(move || {
-                        let file_path = Path::new(&file_name);
+            //     match music_file {
+            //  Ok(file_path) => {
+            //    let file_name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
+            let local_state = (file_count_ref.clone(), done_count_ref.clone());
+            let file_processing = thread::spawn(move || {
+                let file_path = Path::new(&file_name);
 
-                        let name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
+                let name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
 
-                        let output = (name, process_file(file_path));
+                let output = (name, process_file(file_path));
 
-                        let mut done_count = local_state.1.lock().unwrap();
-                        *done_count += 1;
+                let mut done_count = local_state.1.lock().unwrap();
+                *done_count += 1;
 
-                        let file_count = local_state.0.lock().unwrap();
+                let file_count = local_state.0.lock().unwrap();
 
-                        println!("{} of {} done", done_count, *file_count);
-                        output
-                    });
-                    file_processings.push(file_processing);
-         //       }
-          //      Err(e) => println!("{:?}", e),
+                println!("{} of {} done", done_count, *file_count);
+                output
+            });
+            file_processings.push(file_processing);
+            //       }
+            //      Err(e) => println!("{:?}", e),
             //}
         }
         // join the threads and put results into json
@@ -330,8 +311,6 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
             f_measures.push(measure);
         }
     }
-
-
 
     let mut precision = 0.;
     let mut recall = 0.;
