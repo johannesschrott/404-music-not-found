@@ -1,16 +1,16 @@
 extern crate core;
 
+use std::{env, thread};
 use std::borrow::Borrow;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::slice::Chunks;
 use std::sync::{Arc, Mutex};
-use std::{env, thread};
 
 use ansi_term::Style;
 use beat_tracking::get_tempo;
-use clap::{crate_authors, crate_description, crate_version, Arg, ArgGroup, ArgMatches, Command};
+use clap::{Arg, ArgGroup, ArgMatches, Command, crate_authors, crate_description, crate_version};
 use glob::{glob, GlobResult};
 use json::JsonValue;
 
@@ -21,7 +21,7 @@ use peak_picking::OnsetTimes;
 use track::Track;
 
 use crate::f_meausure::{f_measure_beats, f_measure_onsets};
-use crate::onset_algo::{OnsetOutput, SpectralDifference, LFSF};
+use crate::onset_algo::{LFSF, OnsetOutput, SpectralDifference};
 use crate::peak_picking::PeakPicker;
 use crate::statistics::WinVec;
 
@@ -54,7 +54,7 @@ fn main() {
         Style::new().bold().strikethrough().paint("not").to_string(),
         Style::new().bold().paint(" found").to_string(),
     ]
-    .join("");
+        .join("");
 
     let arg_matches = Command::new(fancy_name)
         .about(crate_description!())
@@ -231,6 +231,11 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     for beat_time in beats.beats.iter() {
         beats_json.push(beat_time.to_owned()).unwrap();
     }
+
+    file_json["tempo"].push(tempo.0.bpm);
+    file_json["tempo"].push(tempo.1.bpm);
+
+
     // return (f_measure_onsets(&combined_onset, file_path), file_json);
     return (f_measure_beats(&beats.beats, file_path), file_json);
 }

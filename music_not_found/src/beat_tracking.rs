@@ -7,9 +7,10 @@ const BEAT_ACCURACY: f64 = 70e-3;
 const SLOWEST_BPM: f64 = 60.;
 const HIGHEST_BPM: f64 = 200.;
 
+#[derive(Copy, Clone)]
 pub struct Tempo {
-    lag: usize,
-    bpm: f64,
+    pub lag: usize,
+    pub bpm: f64,
 }
 
 pub fn get_tempo(track: &Track, detection_output: &WinVec<f32>) -> (Tempo, Tempo) {
@@ -64,7 +65,7 @@ pub fn get_beats(tempo: Tempo, onset_times: &Vec<f64>) -> Beats {
 
     let beat_period = 1. / tempo.bpm * 60.;
 
-    println!("{}", beat_period);
+    // println!("{}", beat_period);
 
     beats.push(onset_times[0]);
 
@@ -75,7 +76,7 @@ pub fn get_beats(tempo: Tempo, onset_times: &Vec<f64>) -> Beats {
         let next1: f64 = onset_times[i];
         let next2 = onset_times[i + 1];
 
-        println!("{}, {}, {}", last_beat, next1, next2);
+        // println!("{}, {}, {}", last_beat, next1, next2);
 
         if (next1 - last_beat) > 1.3 * beat_period {
             last_beat = last_beat + beat_period;
