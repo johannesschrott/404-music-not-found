@@ -9,6 +9,7 @@ use crate::{onset_algo::OnsetOutput, statistics::WinVec, track::Track};
 
 pub struct Peaks {
     pub peaks: WinVec<bool>,
+    pub highest_first_beat_index: usize
 }
 
 #[derive(Serialize, Deserialize)]
@@ -21,6 +22,7 @@ pub struct PeakPicker {
 
 pub struct OnsetTimes {
     pub onset_times: Vec<f64>,
+    pub highest_first_beat: usize,
 }
 
 impl PeakPicker {
@@ -56,12 +58,25 @@ impl PeakPicker {
 
             peaks[i] = output[i - 1] < output[i] && output[i] > output[i + 1]  // checks if a peak
             // implement adaptive peak picking
-                && minimum_distance(i, &peaks)
+                && minimum_distance(i, &peaks) // TODO; dont know how to fix the warning here
                 && output[i] >= mean_window(mean_left, mean_right) + self.delta
                 && output[i] >= max_window(max_left, max_right);
         }
+
+        let peaks_with_values = peaks.clone().into_iter().zip(output.into_iter()).filter(|&val| val.0 == true).collect::<Vec<(bool,&f32)>>();
+
+        let mut highest_first_beat_index: i32 = -1;
+        let mut i = 0;
+
+        while highest_first_beat_index == -1 {
+            if peaks_with_values[i].1 > peaks_with_values[i+1].1 {
+                highest_first_beat_index = i as i32;
+            } else { i+=1 }
+        }
+
         Peaks {
             peaks: onset_output.result.set_data(peaks),
+            highest_first_beat_index: highest_first_beat_index as usize,
         }
     }
 }
@@ -78,6 +93,8 @@ impl Peaks {
                 );
             }
         }
-        OnsetTimes { onset_times }
+
+        let highes_first_beat = self.highest_first_beat_index;
+        OnsetTimes { onset_times: onset_times, highest_first_beat: highes_first_beat  }
     }
 }

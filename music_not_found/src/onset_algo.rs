@@ -15,31 +15,6 @@ pub struct OnsetInput {
     pub stft: WinVec<Vec<Complex<f32>>>,
 }
 
-fn preprocess_mel(track: &Track, data: WinVec<Vec<Complex<f32>>>) -> WinVec<Vec<f32>> {
-    // TODO: Dont know how to apply mel filterbank
-
-    let mel_data = data
-        .data
-        .iter()
-        .map(|single_fft| {
-            single_fft
-                .iter()
-                .map(|comp| mel(comp.norm()))
-                .collect::<Vec<f32>>()
-        })
-        .collect::<Vec<Vec<f32>>>();
-
-    let sampling_rate = track.header.sample_rate.to_owned();
-
-    let no_mel_buckets = 40;
-
-    WinVec {
-        data: mel_data,
-        window_size: data.window_size,
-        hop_size: data.hop_size,
-    }
-}
-
 impl OnsetInput {
     pub fn from_track(track: &Track, window_size: usize, hop_size: usize) -> OnsetInput {
         OnsetInput {
@@ -154,6 +129,7 @@ impl LFSF {
             mel_filter::NormalizationFactor::One,
         );
 
+        //TODO: Check if this can be simplified... Was macht das genau??
         data.iter()
             .enumerate()
             .map(|(i, frame)| {

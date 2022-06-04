@@ -148,10 +148,12 @@ impl<A> WinVec<A> {
     }
 }
 
+/*
 pub fn mel(frequency: f32) -> f32 {
     2959. * (1. + frequency / 700.).log10()
 }
-
+*/
+/*
 pub fn mel_filterbank(bins: usize) -> Vec<f32> {
     let min = mel(27.5);
     let max = mel(16000.);
@@ -159,3 +161,4 @@ pub fn mel_filterbank(bins: usize) -> Vec<f32> {
 
     (0..bins).map(|i| min + step * i as f32).collect()
 }
+*/

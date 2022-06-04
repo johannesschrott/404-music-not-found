@@ -1,11 +1,9 @@
 extern crate core;
 
 use std::{env, thread};
-use std::borrow::Borrow;
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
+use std::fs::{self};
+use std::io::{BufReader};
 use std::path::Path;
-use std::slice::Chunks;
 use std::sync::{Arc, Mutex};
 
 use ansi_term::Style;
@@ -14,7 +12,7 @@ use clap::{Arg, ArgGroup, ArgMatches, Command, crate_authors, crate_description,
 use glob::{glob, GlobResult};
 use json::JsonValue;
 
-use crate::beat_tracking::get_beats;
+use crate::beat_tracking::{get_beats, Tempo};
 use f_meausure::{combine_onsets, FMeasure};
 use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
 use peak_picking::OnsetTimes;
@@ -175,11 +173,7 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     // );
     let f_score_lfsf_big = 0.757551539129664;
 
-    // Create JSON Part for current file
-    let mut file_json = json::JsonValue::new_object();
-    file_json["onsets"] = json::JsonValue::new_array();
-    file_json["beats"] = json::JsonValue::new_array();
-    file_json["tempo"] = json::JsonValue::new_array();
+
 
     let combined_onset = combine_onsets(
         ENSEMBLE_NEEDED_SCORE,
@@ -215,12 +209,31 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
         ],
     );
 
+    plot::plot32(&lfsf_small.result.data, "lfsf_small.png");
+
     // try to compute beat tracking
     let tempo = get_tempo(&track, &lfsf_small.result);
 
-    let beats = get_beats(tempo.0, &combined_onset);
+    let tempo_for_beats: Tempo  ;
+    if tempo.0.bpm < tempo.1.bpm {
+        tempo_for_beats = tempo.0;
+    } else { tempo_for_beats = tempo.1 }
+    let beats = get_beats(tempo_for_beats, &peak_picker_small
+        .pick(&lfsf_small)
+        .onset_times(&track)
+        .onset_times, peak_picker_small.pick(&lfsf_small).highest_first_beat_index);
 
-    // Fill JSON with onsets
+    //let beats = get_beats(tempo_for_beats, &combined_onset);
+    /**************
+    ** Fill JSON **
+    **************/
+
+    // Create JSON Part for current file
+    let mut file_json = json::JsonValue::new_object();
+    file_json["onsets"] = json::JsonValue::new_array();
+    file_json["beats"] = json::JsonValue::new_array();
+    file_json["tempo"] = json::JsonValue::new_array();
+
     let onsets_json = &mut file_json["onsets"];
 
     for onset_time in combined_onset.iter() {
@@ -232,9 +245,14 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
         beats_json.push(beat_time.to_owned()).unwrap();
     }
 
-    file_json["tempo"].push(tempo.0.bpm);
-    file_json["tempo"].push(tempo.1.bpm);
-
+    // Push the found tempos in ascending order to the JSON
+    if tempo.0.bpm < tempo.1.bpm {
+        let _ = file_json["tempo"].push(tempo.0.bpm);
+        let _ = file_json["tempo"].push(tempo.1.bpm);
+    } else {
+        let _ = file_json["tempo"].push(tempo.1.bpm);
+        let _ = file_json["tempo"].push(tempo.0.bpm);
+    }
 
     // return (f_measure_onsets(&combined_onset, file_path), file_json);
     return (f_measure_beats(&beats.beats, file_path), file_json);

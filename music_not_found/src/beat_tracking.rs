@@ -60,21 +60,23 @@ pub struct Beats {
     pub beats: Vec<f64>,
 }
 
-pub fn get_beats(tempo: Tempo, onset_times: &Vec<f64>) -> Beats {
+pub fn get_beats(tempo: Tempo, onset_times: &Vec<f64>, first_beat_index: usize) -> Beats {
     let mut beats: Vec<f64> = Vec::new();
 
     let beat_period = 1. / tempo.bpm * 60.;
 
     // println!("{}", beat_period);
 
-    beats.push(onset_times[0]);
+    beats.push(onset_times[first_beat_index]);
 
-    let mut last_beat = onset_times[0];
-    let mut i = 1;
+    let mut last_beat = onset_times[first_beat_index];
+    let mut i = first_beat_index + 1;
 
-    while i < onset_times.len() - 1 {
+    while i < onset_times.len() - 2 {
         let next1: f64 = onset_times[i];
         let next2 = onset_times[i + 1];
+        let next3 = onset_times[i + 2];
+
 
         // println!("{}, {}, {}", last_beat, next1, next2);
 
@@ -83,17 +85,28 @@ pub fn get_beats(tempo: Tempo, onset_times: &Vec<f64>) -> Beats {
             beats.push(last_beat);
         }
 
+        // Computes the differences of the next beat vs the ideal next beat (--> lower value means closer to ideal next beat)
         let diff1 = (last_beat + beat_period - next1).abs();
         let diff2 = (last_beat + beat_period - next2).abs();
+      //  let diff3 = (last_beat + beat_period - next3).abs();
 
-        if diff1 < BEAT_ACCURACY && diff1 < diff2 {
+
+        if //diff1 > BEAT_ACCURACY &&
+        /*diff1 > beat_period/2. && */
+        diff1 < diff2// && diff1 < diff3//&&
+        /*  (beat_period-diff1).abs() < (beat_period-diff2).abs() */ {
             beats.push(next1);
             last_beat = next1;
-        } else if diff2 < BEAT_ACCURACY {
-            beats.push(diff2);
+        } else// if diff2 < diff3 && diff2 < diff1//if diff2 > BEAT_ACCURACY //&&
+        /*diff2 > beat_period/2. */ {
+            beats.push(next2);
             last_beat = next2;
             i += 1;
-        }
+        } /*else if diff3 < diff1 && diff3 < diff2 {
+            beats.push(next3);
+            last_beat = next3;
+            i += 2;
+        }*/
         i += 1;
     }
 
