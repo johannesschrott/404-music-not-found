@@ -2,25 +2,18 @@
 name = "music_not_found"
 authors = ["Simon Reitinger, k11908767@students.jku.at", "Johannes Schrott, k11904214@students.jku.at"]
 version = "0.1.0"
-edition = "2021"
+edition = "2021" # the version of Rust we used
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ansi_term = "0.12" # for fancy, colored and formatted terminal output!!
+ansi_term = "0.12" # for fancy, colored and formatted terminal output!! Who does not love fancy output?
 arima = "0.2.0" # for the auto correlation
-clap = { version = "3.1.10", features = ["cargo", "derive"] }
-dsp = "0.10.2" #for the hamming window!
-glob = "0.3.0" # for foleder iteration
-json = "0.12.4"
+clap = { version = "3.1.10", features = ["cargo", "derive"] } # for parsing the command line arguments + creating a help message
+dsp = "0.10.2" # for the hamming window!
+glob = "0.3.0" # for folder iteration
+json = "0.12.4" # for easy creation of JSON files
 rustfft = "6.0.1" # for computation of stft
-wav_io = "0.1.8" # for conviniently reading csvs.
-conv = "*"
-plotters = "^0.3.1"
-find_peaks = "*"
-convolve2d = "*"
-mel_filter = "*"
-simple_optimization = "*"
-serde = { version = "*", features = ["derive"] }
-serde_json = "*"
-float-cmp = "*"
+wav_io = "0.1.8" # for conviniently reading WAV files.
+plotters = "^0.3.1" # for creating plots of float vectors
+mel_filter = "*" # provides a mel filterbank

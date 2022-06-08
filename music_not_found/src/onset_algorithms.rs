@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 
-use conv::*;
 use rustfft::num_complex::Complex;
 use rustfft::num_traits::abs;
 
@@ -9,7 +8,6 @@ use crate::statistics::{convolve_1d, normalize, stft, WinVec, zeroes};
 use crate::track::Track;
 
 /// Data structure holding the samples of a track and its STFT
-//#[derive(Clone)]
 pub struct OnsetInput {
     pub samples: Vec<f32>,
     pub sampling_rate: u32,
@@ -58,9 +56,11 @@ pub struct HighFrequencyContent;
 
 impl HighFrequencyContent {
     fn weights(size: usize) -> Vec<f32> {
-        let size_f32 = f32::value_from(size).unwrap();
+        //let size_f32 = f32::value_from(size).unwrap();
+        let size_f32: f32 = size as f32;
         (0..size)
-            .map(|a| f32::value_from(a).unwrap() / size_f32)
+           // .map(|a| f32::value_from(a).unwrap() / size_f32)
+            .map(|a| a as f32 / size_f32)
             .collect()
     }
 }
@@ -76,7 +76,7 @@ impl OnsetAlgorithm for HighFrequencyContent {
                         .zip(weights.iter())
                         .map(|(v, w)| v.norm_sqr() * w)
                         .sum();
-                    s / f32::value_from(input.stft.window_size).unwrap()
+                    s / (input.stft.window_size as f32)
                 })
                 .collect()
         });

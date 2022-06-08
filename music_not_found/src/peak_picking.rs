@@ -3,7 +3,6 @@ use std::{
     iter::repeat,
 };
 
-use serde::*;
 
 use crate::{onset_algorithms::OnsetOutput, statistics::WinVec, track::Track};
 
@@ -12,7 +11,6 @@ pub struct Peaks {
     pub highest_first_beat_index: usize
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct PeakPicker {
     pub local_window_max: usize,
     // == w1 == w2

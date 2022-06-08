@@ -16,22 +16,17 @@ use f_measure::{FMeasure, f_measure_beats, f_measure_onsets};
 use onset_algorithms::*;
 use peak_picking::{OnsetTimes, PeakPicker};
 use track::Track;
+use constants::*;
 
 mod beat_tracking;
 mod f_measure;
 mod onset_algorithms;
-mod optimize;
 mod peak_picking;
 mod plot;
 mod statistics;
 mod track;
 mod constants;
 
-
-
-const ENSEMBLE_NEEDED_SCORE: f64 = 1.;
-
-const NO_THREADS: usize = 12;
 
 /// Main entrance point for CLI Application
 fn main() {
