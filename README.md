@@ -1,9 +1,10 @@
-# 404-music-not-found
+# 404 - music ~~not~~ found
 
 Onset detection, tempo estimation and beat detection developed as part of the Special Topic "Audio and Music Processing"
-at JKU in summer semester 2022.
+at the Johannes Kepler University Linz in summer semester 2022.
 
-The Rust project is missing the 404 in its name, as names starting with digits are not allowed :(
+The Rust project is missing the 404 in its name and is contained in a subdirectory, as names starting with digits are
+not allowed :(
 
 Idea:
 
@@ -12,3 +13,8 @@ Idea:
 * Folders and single files can be processed
 
 All onset times are in seconds!
+
+## Known issues
+
+* When processing a directory, the displayed total number of files is incorrect. Nevertheless, the number of already
+  processed files is correct.

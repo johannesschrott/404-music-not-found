@@ -1,11 +1,8 @@
 use arima::acf::acf;
 
-use crate::{peak_picking::OnsetTimes, statistics::WinVec, track::Track};
+use crate::{statistics::WinVec, track::Track};
+use crate::constants::*;
 
-const BEAT_ACCURACY: f64 = 70e-3;
-
-const SLOWEST_BPM: f64 = 60.;
-const HIGHEST_BPM: f64 = 200.;
 
 #[derive(Copy, Clone)]
 pub struct Tempo {
@@ -75,7 +72,6 @@ pub fn get_beats(tempo: Tempo, onset_times: &Vec<f64>, first_beat_index: usize) 
     while i < onset_times.len() - 2 {
         let next1: f64 = onset_times[i];
         let next2 = onset_times[i + 1];
-        let next3 = onset_times[i + 2];
 
 
         // println!("{}, {}, {}", last_beat, next1, next2);
@@ -91,22 +87,14 @@ pub fn get_beats(tempo: Tempo, onset_times: &Vec<f64>, first_beat_index: usize) 
       //  let diff3 = (last_beat + beat_period - next3).abs();
 
 
-        if //diff1 > BEAT_ACCURACY &&
-        /*diff1 > beat_period/2. && */
-        diff1 < diff2// && diff1 < diff3//&&
-        /*  (beat_period-diff1).abs() < (beat_period-diff2).abs() */ {
+        if diff1 < diff2 {
             beats.push(next1);
             last_beat = next1;
-        } else// if diff2 < diff3 && diff2 < diff1//if diff2 > BEAT_ACCURACY //&&
-        /*diff2 > beat_period/2. */ {
+        } else {
             beats.push(next2);
             last_beat = next2;
             i += 1;
-        } /*else if diff3 < diff1 && diff3 < diff2 {
-            beats.push(next3);
-            last_beat = next3;
-            i += 2;
-        }*/
+        }
         i += 1;
     }
 

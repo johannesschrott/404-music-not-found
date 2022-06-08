@@ -2,44 +2,36 @@ extern crate core;
 
 use std::{env, thread};
 use std::fs::{self};
-use std::io::{BufReader};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use ansi_term::Style;
 use beat_tracking::get_tempo;
 use clap::{Arg, ArgGroup, ArgMatches, Command, crate_authors, crate_description, crate_version};
-use glob::{glob, GlobResult};
+use glob::{glob};
 use json::JsonValue;
 
 use crate::beat_tracking::{get_beats, Tempo};
-use f_meausure::{combine_onsets, FMeasure};
-use onset_algo::{HighFrequencyContent, OnsetAlgorithm, OnsetInput};
-use peak_picking::OnsetTimes;
+use f_measure::{FMeasure, f_measure_beats, f_measure_onsets};
+use onset_algorithms::*;
+use peak_picking::{OnsetTimes, PeakPicker};
 use track::Track;
 
-use crate::f_meausure::{f_measure_beats, f_measure_onsets};
-use crate::onset_algo::{LFSF, OnsetOutput, SpectralDifference};
-use crate::peak_picking::PeakPicker;
-use crate::statistics::WinVec;
-
 mod beat_tracking;
-mod f_meausure;
-mod onset_algo;
+mod f_measure;
+mod onset_algorithms;
 mod optimize;
 mod peak_picking;
 mod plot;
 mod statistics;
 mod track;
+mod constants;
 
-/// Accuracy in seconds of the estimated beats
-static BEAT_ACCURACY: f64 = 70e-3;
-/// Deviation of which the estimated tempo may be different (+ and -)
-static TEMPO_DEVIATION: f64 = 0.08;
+
 
 const ENSEMBLE_NEEDED_SCORE: f64 = 1.;
 
-const NO_THEADS: usize = 12;
+const NO_THREADS: usize = 12;
 
 /// Main entrance point for CLI Application
 fn main() {
@@ -100,15 +92,16 @@ fn main() {
     }
 }
 
+/// Based on the passed arguments, a JSON File for containing the results is written out to the file system
 fn handle_output(arg_matches: ArgMatches, output: (Option<FMeasure>, JsonValue)) {
-    println!("{}", Style::new().bold().paint("F Measure").to_string());
-
     if let Some(f_measure) = output.0 {
+        println!("{}", Style::new().bold().paint("F-Measure").to_string());
+
         println!("Precession: {}", f_measure.precision);
         println!("Recall:     {}", f_measure.recall);
-        println!("F-Measure:  {}", f_measure.score);
+        println!("F-Measure:  {}", f_measure.f_measure);
     } else {
-        println!("No F_Measure Data");
+        println!("F-Measure was not computed, due to missing ground truth data or an error occurred during computation.");
     }
     if arg_matches.is_present("competition") {
         let path = arg_matches
@@ -127,24 +120,44 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     let onset_input_big = OnsetInput::from_track(&track, 2048, 1024);
     let onset_input_small = OnsetInput::from_track(&track, 1024, 441);
 
-    //let spectral_small = SpectralDifference.find_onsets(&track, &onset_input_small);
-    //let spectral_big = SpectralDifference.find_onsets(&track, &onset_input_big);
 
-    let lfsf_small = LFSF { log_lambda: 0.7 }.find_onsets(&track, &onset_input_small);
-    let lfsf_big = LFSF { log_lambda: 0.7 }.find_onsets(&track, &onset_input_big);
+    /***********************
+     * SPECTRAL DIFFERENCE *
+     ***********************/
+    // As the onset results computed by spectral difference were not good enough,
+    // spectral difference got excluded from our final submission.
+
+    // let spectral_small = SpectralDifference.find_onsets(&onset_input_small);
+    // let spectral_big = SpectralDifference.find_onsets(&onset_input_big);
+
+    /********
+     * LFSF *
+     ********/
+    let lfsf_small = LFSF { log_lambda: 0.7 }.find_onsets( &onset_input_small);
+    let lfsf_big = LFSF { log_lambda: 0.7 }.find_onsets( &onset_input_big);
+
+    /******************
+     * HIGH FREQUENCY *
+     ******************/
+    // As the onset results computed by the high frequency method were not good enough,
+    // spectral difference got excluded from our final submission.
 
     // let high_frequency: OnsetOutput = HighFrequencyContent::find_onsets(&onset_input);
 
+    /****************
+     * PEAK PICKING *
+     ****************/
+
     let peak_picker_small = PeakPicker {
         local_window_max: 7,
-        local_window_mean: 7, // the higher, the lower the recall but precission slightly increases
+        local_window_mean: 7, // the higher, the lower the recall but precision slightly increases
         minimum_distance: 3,
         delta: 0.1, // must be relatively tiny
     };
 
     let peak_picker_big = PeakPicker {
         local_window_max: 3,
-        local_window_mean: 3, // the higher, the lower the recall but precission slightly increases
+        local_window_mean: 3, // the higher, the lower the recall but precision slightly increases
         minimum_distance: 1,
         delta: 0.1, // must be relatively tiny
     };
@@ -289,7 +302,7 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
 
     let mut chunks = Vec::new();
 
-    for chunk in file_names.to_owned().chunks(NO_THEADS) {
+    for chunk in file_names.to_owned().chunks(NO_THREADS) {
         chunks.push(chunk.to_owned());
     }
 
@@ -344,7 +357,7 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
         if let Some(f_measure) = f_measure_ {
             precision += f_measure.precision;
             recall += f_measure.recall;
-            score += f_measure.score;
+            score += f_measure.f_measure;
             count += 1;
         }
     }
@@ -356,7 +369,7 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
             Some(FMeasure {
                 precision: precision / count_f,
                 recall: recall / count_f,
-                score: score / count_f,
+                f_measure: score / count_f,
             })
         } else {
             None

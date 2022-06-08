@@ -1,63 +1,15 @@
 use std::{
-    cmp::Ordering,
     fs::File,
     io::{BufRead, BufReader},
     path::Path,
 };
-use crate::BEAT_ACCURACY;
+use crate::constants::*;
 
-/// Accuracy in seconds of the estimated onsets
-static ONSET_ACCURACY: f64 = 50e-3;
-
+/// Structure containing F-Measure results of one track
 pub struct FMeasure {
     pub precision: f64,
     pub recall: f64,
-    pub score: f64,
-}
-
-pub fn combine_onsets(needed_score: f64, onsets: Vec<(f64, Vec<f64>)>) -> Vec<f64> {
-    let mut combined_values = Vec::new();
-
-    for (score, vec) in onsets {
-        for x in vec {
-            combined_values.push((x, score));
-        }
-    }
-
-    combined_values.sort_by(|(a, _), (b, _)| {
-        if b > a {
-            Ordering::Less
-        } else {
-            Ordering::Greater
-        }
-    });
-
-    let mut combined = Vec::new();
-
-    let mut time = 0.;
-    let mut i = 0;
-
-    while i < combined_values.len() {
-        let (t, _) = combined_values[i];
-        if t < time {
-            i += 1;
-            continue;
-        }
-
-        time = t;
-
-        let mut scores = Vec::new();
-        while (i < combined_values.len() && combined_values[i].0 - time <= ONSET_ACCURACY) {
-            scores.push(combined_values[i].1);
-            i += 1;
-        }
-
-        if scores.into_iter().sum::<f64>() > needed_score {
-            combined.push(time);
-        }
-    }
-
-    combined
+    pub f_measure: f64,
 }
 
 pub fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> Option<FMeasure> {
@@ -88,7 +40,7 @@ pub fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> Option<FMe
     let mut i_gt: usize = 0;
 
     let mut t_p: usize = 0;
-    let t_n: usize = 0; // There are no true negatives!
+    // let t_n: usize = 0; // There are no true negatives!
     let mut f_p: usize = 0;
     let mut f_n: usize = 0;
 
@@ -122,7 +74,7 @@ pub fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> Option<FMe
     return Some(FMeasure {
         precision,
         recall,
-        score: f_measure,
+        f_measure: f_measure,
     });
 }
 
@@ -134,7 +86,7 @@ pub fn f_measure_beats(found_beats: &Vec<f64>, file_path: &Path) -> Option<FMeas
         .join("");
 
     if !Path::new(&file_string_beats_gt).exists() {
-        // if a onsets.gt file in the same folder exists, do a validation!
+        // if a beats.gt file in the same folder exists, do a validation!
         return None;
     }
 
@@ -157,12 +109,12 @@ pub fn f_measure_beats(found_beats: &Vec<f64>, file_path: &Path) -> Option<FMeas
     let mut i_gt: usize = 0;
 
     let mut t_p: usize = 0;
-    let t_n: usize = 0; // There are no true negatives!
+    // let t_n: usize = 0; // There are no true negatives!
     let mut f_p: usize = 0;
     let mut f_n: usize = 0;
 
     if found_beats.len() == 0 && gt_beats.len() != 0 {
-        println!("No onsets found :( Something may have gone wrong");
+        println!("No beats found :( Something may have gone wrong");
         return None;
     }
     while i_found < found_beats.len() && i_gt < gt_beats.len() {
@@ -191,6 +143,6 @@ pub fn f_measure_beats(found_beats: &Vec<f64>, file_path: &Path) -> Option<FMeas
     return Some(FMeasure {
         precision,
         recall,
-        score: f_measure,
+        f_measure,
     });
 }
