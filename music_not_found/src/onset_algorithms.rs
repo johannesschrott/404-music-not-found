@@ -31,7 +31,7 @@ pub struct OnsetOutput {
 }
 
 impl OnsetOutput {
-    pub fn convolve<F>(&self, kernel_size: usize, kernel_function: F) -> OnsetOutput
+    /*pub fn convolve<F>(&self, kernel_size: usize, kernel_function: F) -> OnsetOutput
         where
             F: Fn(&[f32]) -> f32,
     {
@@ -40,7 +40,7 @@ impl OnsetOutput {
                 .result
                 .map(|d| normalize(&convolve_1d(&d, kernel_size, &kernel_function))),
         }
-    }
+    }*/
 }
 
 /// Defines an interface for the onset algorithms

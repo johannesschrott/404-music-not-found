@@ -42,7 +42,7 @@ pub fn zeroes(n: usize) -> Vec<f32> {
     repeat(0.).take(n).collect()
 }
 
-pub fn vec_add(vecs: &[&[f32]]) -> Vec<f32> {
+/*pub fn vec_add(vecs: &[&[f32]]) -> Vec<f32> {
     let mut output: Vec<f32> = Vec::new();
 
     for _ in 0..vecs[0].len() {
@@ -53,7 +53,7 @@ pub fn vec_add(vecs: &[&[f32]]) -> Vec<f32> {
         v.iter().enumerate().for_each(|(i, x)| output[i] += x)
     }
     output
-}
+}*/
 
 pub fn vec_mult(vecs: &[&[f32]]) -> Vec<f32> {
     let mut output: Vec<f32> = Vec::new();

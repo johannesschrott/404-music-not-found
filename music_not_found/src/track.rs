@@ -14,5 +14,4 @@ impl Track {
         let (header, samples) = wav_io::read_from_file(input_file).unwrap();
         Track { samples,header }
     }
-
 }

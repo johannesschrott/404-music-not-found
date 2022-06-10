@@ -6,19 +6,19 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use ansi_term::Style;
-use beat_tracking::get_tempo;
+use beat_tracking_and_tempo::get_tempo;
 use clap::{Arg, ArgGroup, ArgMatches, Command, crate_authors, crate_description, crate_version};
 use glob::{glob};
 use json::JsonValue;
 
-use crate::beat_tracking::{get_beats, Tempo};
+use beat_tracking_and_tempo::{get_beats, Tempo};
 use f_measure::{FMeasure, f_measure_beats, f_measure_onsets};
 use onset_algorithms::*;
 use peak_picking::{OnsetTimes, PeakPicker};
 use track::Track;
 use constants::*;
 
-mod beat_tracking;
+mod beat_tracking_and_tempo;
 mod f_measure;
 mod onset_algorithms;
 mod peak_picking;
@@ -262,7 +262,7 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
         let _ = file_json["tempo"].push(tempo.0.bpm);
     }
 
-    // return (f_measure_onsets(&combined_onset, file_path), file_json);
+ //   return (f_measure_onsets(&combined_onset, file_path), file_json);
     return (f_measure_beats(&beats.beats, file_path), file_json);
 }
 

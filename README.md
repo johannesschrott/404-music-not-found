@@ -17,12 +17,16 @@ do not include machine learning.
 Project Structure:
 
 * :file_folder: `music_not_found`: Folder containing the Rust Project
-    * :file_facing_up: `Cargo.toml`: contains metadata of the Rust project + list of dependencies and a short
+    * :page_facing_up: `Cargo.toml`: contains metadata of the Rust project + list of dependencies and a short
       description
       why a dependency is used.
     * :file_folder: `src`: contains all Rust source files
-        * :file_facing_up: `constants.rs`: various constants used across the whole project. Each constant features a
+        * :page_facing_up: `beat_tracking_and_tempo.rs`: contains the tempo estimation and beat tracking functions
+        * :page_facing_up: `constants.rs`: various constants used across the whole project. Each constant features a
           short documentation comment.
+        * :page_facing_up: `plot.rs`: provides functions for plotting float vectors into PNG files
+        * :page_facing_up: `track.rs`: reads WAV files and provides a data structure for their content (samples as well
+          as file header)
         * to be continued
 
 After having installed `rustc` and `cargo`, please run ... TO BE CONTINUED
@@ -31,7 +35,35 @@ After having installed `rustc` and `cargo`, please run ... TO BE CONTINUED
 
 ## Tempo Estimation
 
+Our Tempo estimation is based on auto-correlation. We auto-correlate the whole sample of the track then do some peak
+picking. TO BE DESCRIBED IN MORE DETAIL
+
 ## Beat Detection
+
+The third function, beat detection, is based on the first two functions, onset detection (= feature extraction) and
+tempo estimation (= periodicity estimation).
+
+The estimated tempo is taken and the and the ideal duration between two beats is computed.
+
+The first beat is determined by looking at the spectral difference values of the onsets. The first local maxima of
+the onsets (with respect to the spectral difference value) is taken as the first beat. Further beats are calculated
+based on this first beat and the duration between two beats.
+For this, after each found beat the two next onsets that
+follow are considered as possible next beats.
+This results in an iteration over all found onsets. In the following we describe what is happening in each iteration.
+
+If the duration between the last found beat and the directly following next onset is more than 1.3 times the ideal
+duration to
+the next beat,
+an additional next beat is "artificially" computed at the location of the ideal next beat
+(= location of the last beat + beat duration). Experimenting showed, that this slightly influences the f-measure in
+a positive way (increase of approx. 0.005)
+
+Independently of this, the difference of the two considered next beats to this ideal next beat is computed and the
+one which is closer to the ideal beat is taken as the next onset.
+After this the next same procedure is starting again with the currently found beat.
+
+When reaching the end, a vector containing the found onset times is returned.
 
 ## Known issues
 
