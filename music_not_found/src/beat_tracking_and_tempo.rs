@@ -1,6 +1,6 @@
 use arima::acf::acf;
 
-use crate::{statistics::WinVec, track::Track};
+use crate::{helpers::WinVec, track::Track};
 use crate::constants::*;
 
 // this is the auto-correlation-function
@@ -60,7 +60,7 @@ pub fn get_tempo(track: &Track, detection_output: &WinVec<f32>) -> (Tempo, Tempo
     )
 }
 
-/// Data structure containg beats
+/// Data structure containing found beats
 pub struct Beats {
     /// A list of beat times (in seconds)
     pub beats: Vec<f64>,

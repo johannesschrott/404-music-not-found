@@ -3,6 +3,7 @@ use std::{
     io::{BufRead, BufReader},
     path::Path,
 };
+
 use crate::constants::*;
 
 /// Structure containing F-Measure results of one track
@@ -12,12 +13,13 @@ pub struct FMeasure {
     pub f_measure: f64,
 }
 
+/// Read onsets.gt files and compute F-Measure for them
 pub fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> Option<FMeasure> {
     let file_string_onsets_gt = [
         file_path.to_str().unwrap().strip_suffix(".wav").unwrap(),
         ".onsets.gt",
     ]
-    .join("");
+        .join("");
 
     if !Path::new(&file_string_onsets_gt).exists() {
         // if a onsets.gt file in the same folder exists, do a validation!
@@ -78,6 +80,7 @@ pub fn f_measure_onsets(found_onsets: &Vec<f64>, file_path: &Path) -> Option<FMe
     });
 }
 
+/// Read beats.gt files and compute F-Measure for them
 pub fn f_measure_beats(found_beats: &Vec<f64>, file_path: &Path) -> Option<FMeasure> {
     let file_string_beats_gt = [
         file_path.to_str().unwrap().strip_suffix(".wav").unwrap(),

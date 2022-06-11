@@ -24,14 +24,65 @@ Project Structure:
         * :page_facing_up: `beat_tracking_and_tempo.rs`: contains the tempo estimation and beat tracking functions
         * :page_facing_up: `constants.rs`: various constants used across the whole project. Each constant features a
           short documentation comment.
+        * _page_facing_up: `f_measure.rs`: Contains functions for F-Measure computation for onsets and beats.
+        * :page_facing_up: `helpers.rs`: some useful functions and structures that are used trough out the whole
+          project. E.g, the STFT.
+        * :page_facing_up: `main.rs`:CLI entry point, managing file processing and folder processing, JSON generation
+        * :page_facing_up: `onset_algorithms.rs`: Contains the implementation of LFSF, Spectral Difference and High Frequency Content
+        * :page_facing_up: `peak_picking.rs`: Realisation of LFSF Peak Picking
         * :page_facing_up: `plot.rs`: provides functions for plotting float vectors into PNG files
         * :page_facing_up: `track.rs`: reads WAV files and provides a data structure for their content (samples as well
           as file header)
-        * to be continued
 
-After having installed `rustc` and `cargo`, please run ... TO BE CONTINUED
+After having installed `rustc` and `cargo`, open the `music_not_found` folder. Our project can be compiled with:
+`cargo build --release`
+Keep in mind not to forget the `--release` flag since it greatly increases the performance of our application.
+
+To print out an overview over all options, run the program with the `-h` argument:
+`cargo run --release -- -h`
+
+If you use an already compiled executable, you should use:
+`music-not-found -h`
+
+The `-d DIRECTORY_PATH` flag is be used to specify the directory which should be processed and `-c OUTPUT_PATH`
+instructs the program to generate a `json`-file ready for submission. Thus, to generate a submission, one must execute:
+
+`cargo run --release -- -d AUDIO_FILES_DIRECTORY -c submission.json`
+
+If an F-Measure, either for onsets xor for beats,  should be computed,
+please also uncomment the corresponding return statement at the end of the `process_file` function in `main.rs`.
 
 ## Onset Detection
+
+For the onset detection we tried three different algorithms.
+
+The processing of all three of them can be divided into three parts:
+
+1. preprocessing (the STFT is computed).
+2. the detection function
+3. postprocessing/peak-picking
+
+We created our own STFT function (see `helpers.rs`), which is utilizes an FFT function which we imported. Our STFT
+takes windows size and hop size as parameters and is computed accordingly to them.
+
+For the detection function, we implemented three different algorithms:
+Spectral Difference, High Frequency Content and LFSF - for each of them we used the given formula from the lecture
+slides.
+
+After trying out the different algorithms on the training data set, we found out that HighFrequencyContent delievered
+the lowest F-Measure. Spectral Difference and LFSF delivered almost identical results, but LFSF has an F-Measure
+approximately 0.03 higher than Spectral Difference.
+Consequently, for the onset detection, we use LFSF.
+
+Also trough trying out, we found out combining the results of an LFSF with windows size 2048 and hop size 1024 with an
+LFSF with window size 1024 and hop size 512 slightly increases the F-Measure on the train dataset.
+The combination happens after the peak picking, which is described later on. The two LFSF are combined in a way that
+only onsets that were found through both LFSF are counted as onsets (see constant ENSEMBLE_NEEDED_SCORE).
+
+For post-processing, we implemented the peak-picking algorithm (implementation is based on lecture slides). The results
+of the onset function are processed and only points that are a local maximum in a given window, points that are greater
+than the mean of a specified window, and points fulfilling a minimum distance to an already found onset are selected as
+onsets. After Peak Picking, the found onsets are converted to onset times in second.
 
 ## Tempo Estimation
 
@@ -41,7 +92,7 @@ picking. TO BE DESCRIBED IN MORE DETAIL
 ## Beat Detection
 
 The third function, beat detection, is based on the first two functions, onset detection (= feature extraction) and
-tempo estimation (= periodicity estimation).
+tempo estimation (= periodicity estimation). We would classify it as a histogram-based beat tracker.
 
 The estimated tempo is taken and the and the ideal duration between two beats is computed.
 

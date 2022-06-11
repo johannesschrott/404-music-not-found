@@ -4,7 +4,7 @@ use rustfft::num_complex::Complex;
 use rustfft::num_traits::abs;
 
 use crate::constants::*;
-use crate::statistics::{convolve_1d, normalize, stft, WinVec, zeroes};
+use crate::helpers::{stft, WinVec, zeroes};
 use crate::track::Track;
 
 /// Data structure holding the samples of a track and its STFT
@@ -30,19 +30,6 @@ pub struct OnsetOutput {
     pub result: WinVec<f32>,
 }
 
-impl OnsetOutput {
-    /*pub fn convolve<F>(&self, kernel_size: usize, kernel_function: F) -> OnsetOutput
-        where
-            F: Fn(&[f32]) -> f32,
-    {
-        OnsetOutput {
-            result: self
-                .result
-                .map(|d| normalize(&convolve_1d(&d, kernel_size, &kernel_function))),
-        }
-    }*/
-}
-
 /// Defines an interface for the onset algorithms
 pub trait OnsetAlgorithm {
     fn find_onsets(&self, input: &OnsetInput) -> OnsetOutput;
@@ -56,10 +43,8 @@ pub struct HighFrequencyContent;
 
 impl HighFrequencyContent {
     fn weights(size: usize) -> Vec<f32> {
-        //let size_f32 = f32::value_from(size).unwrap();
         let size_f32: f32 = size as f32;
         (0..size)
-           // .map(|a| f32::value_from(a).unwrap() / size_f32)
             .map(|a| a as f32 / size_f32)
             .collect()
     }
@@ -71,6 +56,7 @@ impl OnsetAlgorithm for HighFrequencyContent {
         let data: WinVec<f32> = input.stft.map(|data| {
             data.iter()
                 .map(|single_fft| {
+                    // The following is the formula from L04 slide 23
                     let s: f32 = single_fft
                         .iter()
                         .zip(weights.iter())
@@ -141,7 +127,7 @@ impl LFSF {
             mel_filter::NormalizationFactor::One,
         );
 
-        //TODO: Check if this can be simplified... Was macht das genau??
+        // TODO: Check if this can be simplified... Was macht das genau??
         data.iter()
             .map(|frame| {
                 filterbank
@@ -189,6 +175,7 @@ impl OnsetAlgorithm for LFSF {
         };
 
         for i in 0..data.len() {
+            // This compoutes the LFSF detection function (see slide 61 L04.pdf)
             detection_vector[i] = data[i]
                 .iter()
                 .enumerate()
@@ -206,6 +193,9 @@ impl OnsetAlgorithm for LFSF {
  * HELPERS *
  ***********/
 
+/// Combines onset times (after peak picking) from different algorithms. Using the needed_score,
+/// someone can determine how much of the passed onset results need an onset to have found in
+/// order to count it as one.
 pub fn combine_onsets(needed_score: f64, onsets: Vec<(f64, Vec<f64>)>) -> Vec<f64> {
     let mut combined_values = Vec::new();
 

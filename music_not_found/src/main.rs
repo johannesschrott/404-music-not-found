@@ -23,7 +23,7 @@ mod f_measure;
 mod onset_algorithms;
 mod peak_picking;
 mod plot;
-mod statistics;
+mod helpers;
 mod track;
 mod constants;
 
@@ -96,7 +96,7 @@ fn handle_output(arg_matches: ArgMatches, output: (Option<FMeasure>, JsonValue))
         println!("Recall:     {}", f_measure.recall);
         println!("F-Measure:  {}", f_measure.f_measure);
     } else {
-        println!("F-Measure was not computed, due to missing ground truth data or an error occurred during computation.");
+        println!("F-Measure was not computed. It may be commented out in code, or due to missing ground truth data or an error occurred during computation.");
     }
     if arg_matches.is_present("competition") {
         let path = arg_matches
@@ -161,25 +161,25 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     //     &peak_picker_small.pick(&spectral_small).onset_times(&track).onset_times,
     //     file_path,
     // );
-    let f_score_spectral_small = 0.6785112079439675;
+    let _f_score_spectral_small = 0.6785112079439675; // found through the train dataset
 
     // let f_measure_spectral_big = f_measure_onsets(
     //     &peak_picker_big.pick(&spectral_big).onset_times(&track).onset_times,
     //     file_path,
     // );
-    let f_score_spectral_big = 0.6935366986327169;
+    let _f_score_spectral_big = 0.6935366986327169; // found through the train dataset
 
     // let f_measure_lfsf_small = f_measure_onsets(
     //     &peak_picker_small.pick(&lfsf_small).onset_times(&track).onset_times,
     //     file_path,
     // );
-    let f_score_lfsf_small = 0.7216659749653946;
+    let f_score_lfsf_small = 0.7216659749653946; // found through the train dataset
 
     // let f_measure_lfsf_big = f_measure_onsets(
     //     &peak_picker_big.pick(&lfsf_big).onset_times(&track).onset_times,
     //     file_path,
     // );
-    let f_score_lfsf_big = 0.757551539129664;
+    let f_score_lfsf_big = 0.757551539129664; // found through the train dataset
 
 
 
@@ -217,7 +217,7 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
         ],
     );
 
-    plot::plot32(&lfsf_small.result.data, "lfsf_small.png");
+    //plot::plot32(&lfsf_small.result.data, "lfsf_small.png");
 
     // try to compute beat tracking
     let tempo = get_tempo(&track, &lfsf_small.result);
@@ -232,6 +232,7 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
         .onset_times, peak_picker_small.pick(&lfsf_small).highest_first_beat_index);
 
     //let beats = get_beats(tempo_for_beats, &combined_onset);
+
     /**************
     ** Fill JSON **
     **************/
@@ -262,8 +263,7 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
         let _ = file_json["tempo"].push(tempo.0.bpm);
     }
 
- //   return (f_measure_onsets(&combined_onset, file_path), file_json);
-    return (f_measure_beats(&beats.beats, file_path), file_json);
+    return (None, file_json);
 }
 
 fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
@@ -311,9 +311,7 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
             let file_count_ref_cloned = file_count_ref.clone();
             let mut file_count = file_count_ref_cloned.lock().unwrap();
             *file_count += 1;
-            //     match music_file {
-            //  Ok(file_path) => {
-            //    let file_name = file_path.file_stem().unwrap().to_str().unwrap().to_owned();
+
             let local_state = (file_count_ref.clone(), done_count_ref.clone());
             let file_processing = thread::spawn(move || {
                 let file_path = Path::new(&file_name);
@@ -331,9 +329,7 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
                 output
             });
             file_processings.push(file_processing);
-            //       }
-            //      Err(e) => println!("{:?}", e),
-            //}
+
         }
         // join the threads and put results into json
         for file_processing in file_processings {
@@ -342,6 +338,8 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
             f_measures.push(measure);
         }
     }
+
+    // Aggregate F-Measures of individual files
 
     let mut precision = 0.;
     let mut recall = 0.;
@@ -372,27 +370,3 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
         overall_json_result,
     )
 }
-
-// fn get_onset_times(output: &Vec<f32>, window_size: usize, sample_rate: u32) ->Vec<f64> {
-//     // Compute times of peaks
-//     let peaks: Vec<bool> = (0..output.len())
-//         .into_iter()
-//         .map(|i| {
-//             return if (i > 0 && i < output.len() - 1) /* checks if index is at border */
-//                 && (output[i - 1] <output[i] && output[i] > output[i + 1] ) /* checks if a peak */ {
-//                 true
-//             } else {
-//                 false
-//             };
-//         })
-//         .collect::<Vec<bool>>();
-
-//     let mut onset_times: Vec<f64> = Vec::new();
-
-//     for i in 0..peaks.len() {
-//         if peaks[i] {
-//             onset_times.push(i as f64 * ((window_size as f64) / (sample_rate as f64)));
-//         }
-//     }
-//     return onset_times;
-// }
