@@ -24,7 +24,7 @@ Project Structure:
         * :page_facing_up: `beat_tracking_and_tempo.rs`: contains the tempo estimation and beat tracking functions
         * :page_facing_up: `constants.rs`: various constants used across the whole project. Each constant features a
           short documentation comment.
-        * _page_facing_up: `f_measure.rs`: Contains functions for F-Measure computation for onsets and beats.
+        * :page_facing_up: `f_measure.rs`: Contains functions for F-Measure computation for onsets and beats.
         * :page_facing_up: `helpers.rs`: some useful functions and structures that are used trough out the whole
           project. E.g, the STFT.
         * :page_facing_up: `main.rs`:CLI entry point, managing file processing and folder processing, JSON generation
