@@ -28,7 +28,8 @@ Project Structure:
         * :page_facing_up: `helpers.rs`: some useful functions and structures that are used trough out the whole
           project. E.g, the STFT.
         * :page_facing_up: `main.rs`:CLI entry point, managing file processing and folder processing, JSON generation
-        * :page_facing_up: `onset_algorithms.rs`: Contains the implementation of LFSF, Spectral Difference and High Frequency Content
+        * :page_facing_up: `onset_algorithms.rs`: Contains the implementation of LFSF, Spectral Difference and High
+          Frequency Content
         * :page_facing_up: `peak_picking.rs`: Realisation of LFSF Peak Picking
         * :page_facing_up: `plot.rs`: provides functions for plotting float vectors into PNG files
         * :page_facing_up: `track.rs`: reads WAV files and provides a data structure for their content (samples as well
@@ -49,7 +50,7 @@ instructs the program to generate a `json`-file ready for submission. Thus, to g
 
 `cargo run --release -- -d AUDIO_FILES_DIRECTORY -c submission.json`
 
-If an F-Measure, either for onsets xor for beats,  should be computed,
+If an F-Measure, either for onsets xor for beats, should be computed,
 please also uncomment the corresponding return statement at the end of the `process_file` function in `main.rs`.
 
 ## Onset Detection
@@ -86,15 +87,21 @@ onsets. After Peak Picking, the found onsets are converted to onset times in sec
 
 ## Tempo Estimation
 
-Our Tempo estimation is based on auto-correlation. We auto-correlate the whole sample of the track then do some peak
-picking. TO BE DESCRIBED IN MORE DETAIL
+Our Tempo estimation is based on auto-correlation. The result of the auto-correlation of the onset-times shows
+periodicity, but it is not
+directly delivering beats per minute, instead it shows the lag / the offset between the onsets.
+We auto-correlate the whole sample of the track, crop it according to the lag of the highest possible tempo (= 200 bpm)
+and the lowest possible tempo (= 60bpm).
+Within this range we identify the indices of the two global maxima (= the highest and second-highest peak of the
+auto-correlated track). Using known information about window-size and hop-size, we convert these indices to beats per
+minute.
 
 ## Beat Detection
 
 The third function, beat detection, is based on the first two functions, onset detection (= feature extraction) and
 tempo estimation (= periodicity estimation). We would classify it as a histogram-based beat tracker.
 
-The estimated tempo is taken and the and the ideal duration between two beats is computed.
+The lower one of the estimated tempos is taken and the and the ideal duration between two beats is computed.
 
 The first beat is determined by looking at the spectral difference values of the onsets. The first local maxima of
 the onsets (with respect to the spectral difference value) is taken as the first beat. Further beats are calculated

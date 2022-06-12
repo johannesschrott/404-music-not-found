@@ -25,7 +25,7 @@ impl OnsetInput {
     }
 }
 
-/// Data structure holding ??? TODO
+/// Data structure holding the values determined by the onset detection function (not holding onsets!)
 pub struct OnsetOutput {
     pub result: WinVec<f32>,
 }
@@ -127,7 +127,6 @@ impl LFSF {
             mel_filter::NormalizationFactor::One,
         );
 
-        // TODO: Check if this can be simplified... Was macht das genau??
         data.iter()
             .map(|frame| {
                 filterbank

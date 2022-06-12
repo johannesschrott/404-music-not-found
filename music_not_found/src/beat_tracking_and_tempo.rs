@@ -27,18 +27,18 @@ pub fn get_tempo(track: &Track, detection_output: &WinVec<f32>) -> (Tempo, Tempo
         Err(e) => println!("{:?}", e),
     };
 
-    // TODO: For the lowest and highest possible BPM compute its lag (= no of STFT vectors between two beats)
+    // For the lowest and highest possible BPM compute its lag (= nr of STFT vectors between two beats)
     let high = bpm_to_lag(track, detection_output.hop_size, SLOWEST_BPM);
     let low = bpm_to_lag(track, detection_output.hop_size, HIGHEST_BPM);
 
 
-    // TODO: ab hier unklar was passiert bei Tempo Estimation...
+    // Crop the autocorrelated signal to the area between lowest lag (-> BPM 200) and highest lag (-> BPM 60)
     let tempo_area = &a_corr[low..high];
 
     let mut max = 0;
     let mut max2 = 0;
 
-    // TODO: is this a kind of peak picking? oder Periodicity estimation??
+    // Find the indices of the two highest values in the cropped auto-correlation
     for (i, x) in tempo_area.iter().enumerate() {
         if tempo_area[max] <= *x {
             max2 = max;
@@ -48,6 +48,8 @@ pub fn get_tempo(track: &Track, detection_output: &WinVec<f32>) -> (Tempo, Tempo
         }
     }
 
+    // As the lag has been cropped, re-add the cropped part in order to convert the found maxima
+    // correctly to BPM
     (
         Tempo {
             lag: low + max,

@@ -6,17 +6,17 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use ansi_term::Style;
-use beat_tracking_and_tempo::get_tempo;
 use clap::{Arg, ArgGroup, ArgMatches, Command, crate_authors, crate_description, crate_version};
-use glob::{glob};
+use glob::glob;
 use json::JsonValue;
 
 use beat_tracking_and_tempo::{get_beats, Tempo};
-use f_measure::{FMeasure, f_measure_beats, f_measure_onsets};
+use beat_tracking_and_tempo::get_tempo;
+use constants::*;
+use f_measure::{f_measure_beats, f_measure_onsets, FMeasure};
 use onset_algorithms::*;
 use peak_picking::{OnsetTimes, PeakPicker};
 use track::Track;
-use constants::*;
 
 mod beat_tracking_and_tempo;
 mod f_measure;
@@ -128,8 +128,8 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     /********
      * LFSF *
      ********/
-    let lfsf_small = LFSF { log_lambda: 0.7 }.find_onsets( &onset_input_small);
-    let lfsf_big = LFSF { log_lambda: 0.7 }.find_onsets( &onset_input_big);
+    let lfsf_small = LFSF { log_lambda: 0.7 }.find_onsets(&onset_input_small);
+    let lfsf_big = LFSF { log_lambda: 0.7 }.find_onsets(&onset_input_big);
 
     /******************
      * HIGH FREQUENCY *
@@ -182,7 +182,6 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     let f_score_lfsf_big = 0.757551539129664; // found through the train dataset
 
 
-
     let combined_onset = combine_onsets(
         ENSEMBLE_NEEDED_SCORE,
         vec![
@@ -222,7 +221,7 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     // try to compute beat tracking
     let tempo = get_tempo(&track, &lfsf_small.result);
 
-    let tempo_for_beats: Tempo  ;
+    let tempo_for_beats: Tempo;
     if tempo.0.bpm < tempo.1.bpm {
         tempo_for_beats = tempo.0;
     } else { tempo_for_beats = tempo.1 }
@@ -264,6 +263,8 @@ fn process_file(file_path: &Path) -> (Option<FMeasure>, JsonValue) {
     }
 
     return (None, file_json);
+    // return (f_measure_onsets(&combined_onset, file_path), file_json);
+    // return (f_measure_beats(&beats.beats, file_path), file_json);
 }
 
 fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
@@ -329,7 +330,6 @@ fn process_folder(folder_path: &Path) -> (Option<FMeasure>, json::JsonValue) {
                 output
             });
             file_processings.push(file_processing);
-
         }
         // join the threads and put results into json
         for file_processing in file_processings {
